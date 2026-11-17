@@ -1,6 +1,7 @@
 # Vorschau- und Build-Ausgaben
 preview/
 .release/
+.cfbuild/
 *.zip
 
 # Python

@@ -1,5 +1,10 @@
 package-as: ManaSigil
 
+# Versionshinweise für CurseForge aus der Changelog-Datei
+manual-changelog:
+  filename: CHANGELOG.md
+  markup-type: markdown
+
 # Diese Dateien gehören nur ins Repository, nicht ins Addon-Paket
 ignore:
   - tools
@@ -8,3 +13,5 @@ ignore:
   - .gitignore
   - .pkgmeta
   - README.md
+  - .release
+  - .cfbuild

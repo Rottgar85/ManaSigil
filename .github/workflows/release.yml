@@ -12,8 +12,12 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    env:
+      CF_API_KEY: ${{ secrets.CF_API_KEY }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # Packager braucht die Git-Historie
 
       - name: Lua-Syntax prüfen und Rauchtest
         run: |
@@ -50,3 +54,11 @@ jobs:
           name: ManaSigil ${{ github.ref_name }}
           body_path: .release/notes.md
           files: .release/ManaSigil-${{ github.ref_name }}.zip
+
+      # Upload auf CurseForge (Projekt-ID aus "## X-Curse-Project-ID" in der .toc).
+      # Läuft nur, wenn das Repository-Secret CF_API_KEY hinterlegt ist.
+      - name: Auf CurseForge hochladen
+        if: ${{ env.CF_API_KEY != '' }}
+        uses: BigWigsMods/packager@v2
+        with:
+          args: -r .cfbuild

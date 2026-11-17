@@ -1,0 +1,16 @@
+## Interface: 16001
+## Title: |cff7fb2ffMana|r|cffffd166Sigil|r
+## Notes: Mana-Ring + 5-Sekunden-Regel + Tick-Timer mit Klassen-Themen (Engelsflügel, Dämonenpakt, Arkane Runen ...).
+## Author: Rottgar85
+## Version: 1.0.0
+## Category: Combat
+## IconTexture: Interface\AddOns\ManaSigil\Media\sigil
+## SavedVariablesPerCharacter: ManaSigilDB
+## X-Curse-Project-ID: 1812997
+
+Core.lua
+Themes.lua
+Tracker.lua
+Display.lua
+Options.lua
+Minimap.lua

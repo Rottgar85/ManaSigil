@@ -1,0 +1,15 @@
+# Vorschau- und Build-Ausgaben
+preview/
+.release/
+*.zip
+
+# Python
+__pycache__/
+*.pyc
+
+# Editor / System
+.vscode/
+.idea/
+Thumbs.db
+Desktop.ini
+.DS_Store

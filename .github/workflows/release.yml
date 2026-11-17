@@ -1,0 +1,52 @@
+# Baut bei einem Tag (z. B. v1.0.1) ein sauberes Addon-ZIP und hängt es an ein GitHub-Release.
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Lua-Syntax prüfen und Rauchtest
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq lua5.1
+          for f in *.lua; do luac5.1 -p "$f"; done
+          lua5.1 tools/smoke_test.lua .
+
+      - name: Version aus der .toc mit dem Tag abgleichen
+        run: |
+          TOC_VERSION=$(grep -m1 '^## Version:' ManaSigil.toc | sed 's/## Version: *//' | tr -d '\r')
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          echo "toc=$TOC_VERSION tag=$TAG_VERSION"
+          if [ "$TOC_VERSION" != "$TAG_VERSION" ]; then
+            echo "::error::## Version in ManaSigil.toc ($TOC_VERSION) passt nicht zum Tag ($TAG_VERSION)"
+            exit 1
+          fi
+
+      - name: Addon-ZIP bauen
+        run: |
+          mkdir -p .release/ManaSigil
+          cp ManaSigil.toc *.lua LICENSE CHANGELOG.md .release/ManaSigil/
+          cp -r Media .release/ManaSigil/
+          cd .release && zip -r "ManaSigil-${GITHUB_REF_NAME}.zip" ManaSigil
+
+      - name: Changelog-Abschnitt auslesen
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          awk -v v="$VERSION" '$0 ~ "^## "v {f=1; next} /^## / {f=0} f' CHANGELOG.md > .release/notes.md
+          [ -s .release/notes.md ] || echo "Release $VERSION" > .release/notes.md
+
+      - name: GitHub-Release erstellen
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ManaSigil ${{ github.ref_name }}
+          body_path: .release/notes.md
+          files: .release/ManaSigil-${{ github.ref_name }}.zip

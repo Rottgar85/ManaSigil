@@ -1,0 +1,10 @@
+package-as: ManaSigil
+
+# Diese Dateien gehören nur ins Repository, nicht ins Addon-Paket
+ignore:
+  - tools
+  - docs
+  - .github
+  - .gitignore
+  - .pkgmeta
+  - README.md

@@ -1,0 +1,17 @@
+# Changelog
+
+## 1.0.0 – 2026-11-17
+
+First release.
+
+- Mana ring (outer) with spark
+- Five-second rule tracker (inner ring) with countdown
+- Mana tick timer (2 s cycle, `+amount` on tick)
+- 9 themes, chosen automatically by class: Angel Wings, Shadow Wings, Demon Pact, Arcane Runes, Grove of Nature, Holy Light, Stormcaller, Wilderness, Classic
+- Theme colors and decoration selectable independently
+- 11 ring symbols or a solid circle per ring
+- Adjustable sizes: rings, symbols, background, border, text, spark, decoration
+- 9 customizable colors
+- Minimap button (on/off, options, draggable)
+- Options panel with live preview, slash commands `/msig`
+- Fallback display if mana values are hidden in combat (secret values)

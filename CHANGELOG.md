@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.2 – 2026-11-17
+
+- Fixed the automatic CurseForge upload
+- Includes 1.1.0: English localization (follows the game client language), German on `deDE` clients
+
 ## 1.1.1 – 2026-11-17
 
 - Releases are now uploaded to CurseForge automatically

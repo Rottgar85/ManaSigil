@@ -61,4 +61,4 @@ jobs:
         if: ${{ env.CF_API_KEY != '' }}
         uses: BigWigsMods/packager@v2
         with:
-          args: -r .cfbuild
+          args: -r ${{ github.workspace }}/.cfbuild

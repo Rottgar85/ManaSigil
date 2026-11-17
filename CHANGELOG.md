@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.0 – 2026-11-17
+
+- English localization: the addon now follows the game client language – German on `deDE` clients, English on all others (options, tooltips, chat messages, theme/symbol names)
+- Addon list description available in English and German
+
 ## 1.0.0 – 2026-11-17
 
 First release.

@@ -1,5 +1,6 @@
 -- ManaSigil – Optionsmenü (Spieloptionen > AddOns > ManaSigil)
 local _, ns = ...
+local L = ns.L
 
 local O = {}
 ns.Options = O
@@ -169,8 +170,8 @@ local function Swatch(parent, text, key, x, y)
     b:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
         GameTooltip:AddLine(text)
-        GameTooltip:AddLine("Linksklick: Farbe wählen", 1, 1, 1)
-        GameTooltip:AddLine("Rechtsklick: Themenfarbe verwenden", 1, 1, 1)
+        GameTooltip:AddLine(L.TT_COLOR_PICK, 1, 1, 1)
+        GameTooltip:AddLine(L.TT_COLOR_RESET, 1, 1, 1)
         GameTooltip:Show()
     end)
     b:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -197,7 +198,7 @@ end
 local function ThemeLabel(v)
     if v == "auto" then
         local key = ns.classDefaults[ns.PlayerClass() or ""] or "classic"
-        return "Automatisch (" .. ns.themes[key].name .. ")"
+        return string.format(L.AUTO_FMT, ns.themes[key].name)
     end
     return ns.themes[v] and ns.themes[v].name or v
 end
@@ -211,8 +212,8 @@ local function DecorValues()
 end
 
 local function DecorLabel(v)
-    if v == "theme" then return "Wie Thema" end
-    if v == "none" then return "Keine" end
+    if v == "theme" then return L.DECOR_THEME end
+    if v == "none" then return L.DECOR_NONE end
     return ns.themes[v] and ns.themes[v].name or v
 end
 
@@ -226,18 +227,19 @@ local function ShapeLabel(which)
     return function(v)
         if v == "theme" then
             local shapes = ns.GetTheme().shapes or {}
-            return "Wie Thema (" .. (ns.shapeNames[shapes[which]] or "Leuchtpunkt") .. ")"
+            return string.format(L.THEME_AS, ns.shapeNames[shapes[which]] or ns.shapeNames.dot)
         end
         return ns.shapeNames[v] or v
     end
 end
 
+-- Auswahl aus einer übersetzten Tabelle
+local function Lookup(tbl) return function(v) return tbl[v] or v end end
+
 local RING_STYLES = { "symbols", "solid" }
-local RING_STYLE_LABELS = { symbols = "Einzelne Symbole", solid = "Durchgehender Kreis" }
 local BG_SHAPES = { "disc", "soft", "ring" }
-local BG_LABELS = { disc = "Scheibe", soft = "Weicher Schein", ring = "Nur Ring" }
 local TEXT_MODES = { "percent", "value", "both", "none" }
-local TEXT_LABELS = { percent = "Prozent", value = "Manawert", both = "Prozent + Wert", none = "Aus" }
+local MODULE_ORDER = { "ring", "fsr", "ticks", "spark", "decor", "text", "background", "rim", "animations" }
 
 local function Pct(v) return string.format("%d%%", math.floor(v * 100 + 0.5)) end
 local function Times(v) return string.format("%.2fx", v) end
@@ -264,93 +266,83 @@ function O:Build()
     local title = c:CreateFontString(nil, "ARTWORK", "GameFontNormalHuge")
     title:SetPoint("TOPLEFT", 16, y)
     title:SetText("|cff7fb2ffMana|r|cffffd166Sigil|r")
-    Label(c, "Mana-Ring, 5-Sekunden-Regel und Tick-Timer – alles frei gestaltbar. Der Ring bleibt sichtbar, solange dieses Fenster offen ist.",
-        16, y - 30, "GameFontHighlightSmall")
-    y = y - 60
+    local sub = Label(c, L.OPT_SUBTITLE, 16, y - 30, "GameFontHighlightSmall")
+    sub:SetWidth(580); sub:SetJustifyH("LEFT")
+    y = y - 64
 
     -- Thema ----------------------------------------------------------------
-    Header(c, "Thema", y); y = y - 34
-    Cycler(c, "Thema (Farben/Symbole)", 20, y, ThemeValues, ThemeLabel,
+    Header(c, L.H_THEME, y); y = y - 34
+    Cycler(c, L.O_THEME, 20, y, ThemeValues, ThemeLabel,
         function() return db().theme end, function(v) db().theme = v end)
     y = y - 30
-    Cycler(c, "Dekoration", 20, y, DecorValues, DecorLabel,
+    Cycler(c, L.O_DECOR, 20, y, DecorValues, DecorLabel,
         function() return db().decor end, function(v) db().decor = v end)
     y = y - 30
-    Slider(c, "Dekorationsgröße", 20, y, 0.3, 2.0, 0.05, Times, SG("decorScale"), SS("decorScale"))
+    Slider(c, L.O_DECOR_SCALE, 20, y, 0.3, 2.0, 0.05, Times, SG("decorScale"), SS("decorScale"))
     y = y - 40
 
     -- Gesamtgröße -----------------------------------------------------------
-    Header(c, "Größe & Deckkraft", y); y = y - 34
-    Slider(c, "Grundgröße", 20, y, 60, 300, 5, "%d px",
+    Header(c, L.H_SIZE, y); y = y - 34
+    Slider(c, L.O_BASESIZE, 20, y, 60, 300, 5, "%d px",
         function() return db().size end, function(v) db().size = v end)
     y = y - 28
-    Slider(c, "Skalierung", 20, y, 0.5, 2.0, 0.05, Times,
+    Slider(c, L.O_SCALE, 20, y, 0.5, 2.0, 0.05, Times,
         function() return db().scale end, function(v) db().scale = v end)
     y = y - 28
-    Slider(c, "Gesamt-Deckkraft", 20, y, 0.1, 1.0, 0.05, Pct,
+    Slider(c, L.O_ALPHA, 20, y, 0.1, 1.0, 0.05, Pct,
         function() return db().alpha end, function(v) db().alpha = v end)
     y = y - 40
 
-    -- Äußerer Ring ------------------------------------------------------------
-    Header(c, "Mana-Ring (außen)", y); y = y - 34
-    Cycler(c, "Darstellung", 20, y, function() return RING_STYLES end,
-        function(v) return RING_STYLE_LABELS[v] or v end, SG("outerStyle"), SS("outerStyle"))
-    y = y - 30
-    Cycler(c, "Symbol", 20, y, ShapeValues, ShapeLabel("outer"), SG("outerShape"), SS("outerShape"))
-    y = y - 30
-    Slider(c, "Anzahl Symbole", 20, y, 8, 120, 1, "%d", SG("outerCount"), SS("outerCount"))
-    y = y - 28
-    Slider(c, "Symbolgröße / Dicke", 20, y, 0.3, 3.0, 0.05, Times, SG("outerSize"), SS("outerSize"))
-    y = y - 28
-    Slider(c, "Radius", 20, y, 0.15, 0.7, 0.01, Pct, SG("outerRadius"), SS("outerRadius"))
+    -- Ringe ----------------------------------------------------------------------
+    local function RingSection(header, prefix, which, countMin, countMax, radMin, radMax)
+        Header(c, header, y); y = y - 34
+        Cycler(c, L.O_STYLE, 20, y, function() return RING_STYLES end, Lookup(L.RING_STYLES),
+            SG(prefix .. "Style"), SS(prefix .. "Style"))
+        y = y - 30
+        Cycler(c, L.O_SHAPE, 20, y, ShapeValues, ShapeLabel(which), SG(prefix .. "Shape"), SS(prefix .. "Shape"))
+        y = y - 30
+        Slider(c, L.O_COUNT, 20, y, countMin, countMax, 1, "%d", SG(prefix .. "Count"), SS(prefix .. "Count"))
+        y = y - 28
+        Slider(c, L.O_SYMSIZE, 20, y, 0.3, 3.0, 0.05, Times, SG(prefix .. "Size"), SS(prefix .. "Size"))
+        y = y - 28
+        Slider(c, L.O_RADIUS, 20, y, radMin, radMax, 0.01, Pct, SG(prefix .. "Radius"), SS(prefix .. "Radius"))
+    end
+    RingSection(L.H_OUTER, "outer", "outer", 8, 120, 0.15, 0.7)
     y = y - 40
-
-    -- Innerer Ring ------------------------------------------------------------
-    Header(c, "5-Sek.-Regel / Tick-Ring (innen)", y); y = y - 34
-    Cycler(c, "Darstellung", 20, y, function() return RING_STYLES end,
-        function(v) return RING_STYLE_LABELS[v] or v end, SG("innerStyle"), SS("innerStyle"))
-    y = y - 30
-    Cycler(c, "Symbol", 20, y, ShapeValues, ShapeLabel("inner"), SG("innerShape"), SS("innerShape"))
-    y = y - 30
-    Slider(c, "Anzahl Symbole", 20, y, 6, 100, 1, "%d", SG("innerCount"), SS("innerCount"))
-    y = y - 28
-    Slider(c, "Symbolgröße / Dicke", 20, y, 0.3, 3.0, 0.05, Times, SG("innerSize"), SS("innerSize"))
-    y = y - 28
-    Slider(c, "Radius", 20, y, 0.1, 0.6, 0.01, Pct, SG("innerRadius"), SS("innerRadius"))
+    RingSection(L.H_INNER, "inner", "inner", 6, 100, 0.1, 0.6)
     y = y - 34
-    Check(c, "Symbole zeigen nach außen (mitdrehen)", 20, y, SG("rotateSymbols"), SS("rotateSymbols"))
+    Check(c, L.O_ROTATE, 20, y, SG("rotateSymbols"), SS("rotateSymbols"))
     y = y - 28
-    Slider(c, "Deckkraft leerer Teil", 20, y, 0, 1, 0.05, Pct, SG("emptyAlpha"), SS("emptyAlpha"))
+    Slider(c, L.O_EMPTY_ALPHA, 20, y, 0, 1, 0.05, Pct, SG("emptyAlpha"), SS("emptyAlpha"))
     y = y - 40
 
     -- Hintergrund -----------------------------------------------------------
-    Header(c, "Hintergrund & Rand", y); y = y - 34
-    Cycler(c, "Hintergrund-Form", 20, y, function() return BG_SHAPES end,
-        function(v) return BG_LABELS[v] or v end, SG("bgShape"), SS("bgShape"))
+    Header(c, L.H_BG, y); y = y - 34
+    Cycler(c, L.O_BG_SHAPE, 20, y, function() return BG_SHAPES end, Lookup(L.BG_SHAPES),
+        SG("bgShape"), SS("bgShape"))
     y = y - 30
-    Slider(c, "Hintergrund-Größe", 20, y, 0.2, 2.0, 0.05, Times, SG("bgSize"), SS("bgSize"))
+    Slider(c, L.O_BG_SIZE, 20, y, 0.2, 2.0, 0.05, Times, SG("bgSize"), SS("bgSize"))
     y = y - 28
-    Slider(c, "Hintergrund-Deckkraft", 20, y, 0, 1, 0.05, Pct, SG("bgAlpha"), SS("bgAlpha"))
+    Slider(c, L.O_BG_ALPHA, 20, y, 0, 1, 0.05, Pct, SG("bgAlpha"), SS("bgAlpha"))
     y = y - 28
-    Slider(c, "Rand-Größe", 20, y, 0.5, 1.8, 0.02, Times, SG("rimSize"), SS("rimSize"))
+    Slider(c, L.O_RIM_SIZE, 20, y, 0.5, 1.8, 0.02, Times, SG("rimSize"), SS("rimSize"))
     y = y - 28
-    Slider(c, "Rand-Deckkraft", 20, y, 0, 1, 0.05, Pct, SG("rimAlpha"), SS("rimAlpha"))
+    Slider(c, L.O_RIM_ALPHA, 20, y, 0, 1, 0.05, Pct, SG("rimAlpha"), SS("rimAlpha"))
     y = y - 40
 
     -- Text & Funke -----------------------------------------------------------
-    Header(c, "Text & Funke", y); y = y - 34
-    Cycler(c, "Text in der Mitte", 20, y, function() return TEXT_MODES end,
-        function(v) return TEXT_LABELS[v] or v end,
+    Header(c, L.H_TEXT, y); y = y - 34
+    Cycler(c, L.O_TEXTMODE, 20, y, function() return TEXT_MODES end, Lookup(L.TEXT_MODES),
         function() return db().textMode end, function(v) db().textMode = v end)
     y = y - 30
-    Slider(c, "Textgröße", 20, y, 0.4, 2.5, 0.05, Times, SG("textScale"), SS("textScale"))
+    Slider(c, L.O_TEXTSCALE, 20, y, 0.4, 2.5, 0.05, Times, SG("textScale"), SS("textScale"))
     y = y - 28
-    Slider(c, "Funkengröße", 20, y, 0.3, 3.0, 0.05, Times, SG("sparkSize"), SS("sparkSize"))
+    Slider(c, L.O_SPARKSIZE, 20, y, 0.3, 3.0, 0.05, Times, SG("sparkSize"), SS("sparkSize"))
     y = y - 40
 
     -- Farben -----------------------------------------------------------------
-    Header(c, "Farben", y); y = y - 34
-    Label(c, "Linksklick: Farbe wählen · Rechtsklick: Themenfarbe · * = eigene Farbe", 20, y, "GameFontDisableSmall")
+    Header(c, L.H_COLORS, y); y = y - 34
+    Label(c, L.O_COLOR_HINT, 20, y, "GameFontDisableSmall")
     y = y - 22
     for i, ck in ipairs(ns.colorKeys) do
         local col = (i - 1) % 3
@@ -358,65 +350,54 @@ function O:Build()
         Swatch(c, ck[2], ck[1], 20 + col * 195, y - row * 30)
     end
     y = y - math.ceil(#ns.colorKeys / 3) * 30 - 4
-    Button(c, "Alle Farben zurücksetzen", 20, y, 200, function()
+    Button(c, L.O_COLORS_RESET, 20, y, 200, function()
         wipe(ns.db.colors); O:RefreshWidgets(); Changed()
     end)
     y = y - 44
 
     -- Module -------------------------------------------------------------------
-    Header(c, "Module", y); y = y - 34
-    local mods = {
-        { "ring",       "Mana-Ring (außen)" },
-        { "fsr",        "5-Sekunden-Regel (innen)" },
-        { "ticks",      "Mana-Tick-Timer (innen)" },
-        { "spark",      "Leuchtfunke am Ring" },
-        { "decor",      "Dekoration (Flügel, Hörner ...)" },
-        { "text",       "Zahlen anzeigen" },
-        { "background", "Hintergrund" },
-        { "rim",        "Rand" },
-        { "animations", "Animationen" },
-    }
-    for i, m in ipairs(mods) do
+    Header(c, L.H_MODULES, y); y = y - 34
+    for i, key in ipairs(MODULE_ORDER) do
         local col = (i - 1) % 2
         local row = math.floor((i - 1) / 2)
-        Check(c, m[2], 20 + col * 290, y - row * 28,
-            function() return db().modules[m[1]] end,
-            function(v) db().modules[m[1]] = v end)
+        Check(c, L.MODULES[key], 20 + col * 290, y - row * 28,
+            function() return db().modules[key] end,
+            function(v) db().modules[key] = v end)
     end
-    y = y - math.ceil(#mods / 2) * 28 - 14
+    y = y - math.ceil(#MODULE_ORDER / 2) * 28 - 14
 
     -- Verhalten ----------------------------------------------------------------
-    Header(c, "Verhalten", y); y = y - 34
-    Check(c, "Anzeige aktiviert", 20, y,
+    Header(c, L.H_BEHAVIOR, y); y = y - 34
+    Check(c, L.O_ENABLED, 20, y,
         function() return db().enabled end, function(v) db().enabled = v; ns.Minimap:Refresh() end)
-    Check(c, "Minimap-Button anzeigen", 310, y,
+    Check(c, L.O_MINIMAP, 310, y,
         function() return not db().minimap.hide end, function(v) db().minimap.hide = not v; ns.Minimap:Refresh() end)
     y = y - 28
-    Check(c, "Fixieren (klickt durch, nicht verschiebbar)", 20, y,
+    Check(c, L.O_LOCK, 20, y,
         function() return db().locked end, function(v) db().locked = v end)
     y = y - 28
-    Check(c, "Außerhalb des Kampfes bei vollem Mana ausblenden", 20, y,
+    Check(c, L.O_HIDEFULL, 20, y,
         function() return db().hideWhenFull end, function(v) db().hideWhenFull = v end)
     y = y - 28
-    Check(c, "Bei Formen/Klassen ohne Mana ausblenden", 20, y,
+    Check(c, L.O_ONLYMANA, 20, y,
         function() return db().onlyManaClasses end, function(v) db().onlyManaClasses = v end)
     y = y - 44
 
     -- Werkzeuge ----------------------------------------------------------------
-    Header(c, "Werkzeuge", y); y = y - 34
-    Button(c, "5-Sek.-Regel testen", 20, y, 180, function()
+    Header(c, L.H_TOOLS, y); y = y - 34
+    Button(c, L.B_TEST, 20, y, 180, function()
         ns.Tracker:StartFSR(); ns.Display:Show(true)
     end)
-    Button(c, "Position zurücksetzen", 210, y, 180, function()
+    Button(c, L.B_POS_RESET, 210, y, 180, function()
         ns.db.point = { "CENTER", "UIParent", "CENTER", 0, -160 }; Changed()
     end)
-    Button(c, "Form & Größen zurücksetzen", 400, y, 200, function()
+    Button(c, L.B_STYLE_RESET, 400, y, 200, function()
         wipe(ns.db.style)
         for k, v in pairs(ns.defaults.style) do ns.db.style[k] = v end
         O:RefreshWidgets(); Changed()
     end)
     y = y - 34
-    Label(c, "Befehle: /msig, toggle, minimap, lock, unlock, theme <name>, test", 20, y, "GameFontDisableSmall")
+    Label(c, L.O_COMMANDS, 20, y, "GameFontDisableSmall")
     y = y - 30
 
     c:SetHeight(-y + 20)
@@ -447,7 +428,7 @@ end
 function O:Open()
     if InCombatLockdown() then
         ns.pendingOptions = true
-        ns.Print("Optionen öffnen sich nach dem Kampf.")
+        ns.Print(L.OPTIONS_AFTER_COMBAT)
         return
     end
     if self.category and Settings and Settings.OpenToCategory then

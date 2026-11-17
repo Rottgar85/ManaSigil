@@ -38,7 +38,9 @@ Minimap.GetHeight = function() return 140 end
 Minimap.GetCenter = function() return 500, 500 end
 Minimap.GetEffectiveScale = function() return 1 end
 GetCursorPosition = function() return 400, 600 end
-for _, f in ipairs({ "Core", "Themes", "Tracker", "Display", "Options", "Minimap" }) do
+-- Sprache über Umgebungsvariable LOCALE testen (Standard: deDE)
+GetLocale = function() return os.getenv("LOCALE") or "deDE" end
+for _, f in ipairs({ "Locale", "Core", "Themes", "Tracker", "Display", "Options", "Minimap" }) do
     assert(loadfile(dir .. "/" .. f .. ".lua"))("ManaSigil", ns)
 end
 local ev = scripts[ns.eventFrame].OnEvent
@@ -113,4 +115,7 @@ for k in pairs(ns.db.modules) do ns.db.modules[k] = false end
 ns.Display:Refresh(); upd(nil, 1)
 for k in pairs(ns.db.modules) do ns.db.modules[k] = true end
 ns.Display:Refresh(); upd(nil, 1); ns.Options:RefreshWidgets()
+-- Übersetzung: alle Schlüssel der englischen Tabelle müssen auch in der aktiven Sprache existieren
+print("Sprache", GetLocale(), "Thema angel =", ns.themes.angel.name, "| Symbol skull =", ns.shapeNames.skull)
+assert(ns.L.H_THEME ~= "H_THEME" and ns.L.COLORS.ring and ns.L.MODULES.rim, "Übersetzung fehlt")
 print("ALLES OK")

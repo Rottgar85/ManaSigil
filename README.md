@@ -37,6 +37,7 @@
 
 - **Design everything yourself:** 11 symbols per ring (dot, orb, ring, diamond, star, square, heart, flame, cross, skull, leaf) or a solid circle, all sizes, 9 colors, background shape, 9 toggleable modules, live preview
 - **Minimap button:** left-click on/off, right-click options, drag to move
+- **English & German** – follows your game client language automatically
 - No libraries, lightweight, settings saved per character
 
 ## Installation
@@ -66,6 +67,7 @@ Add a `Register("mytheme", { ... })` block to [`Themes.lua`](Themes.lua). All fi
 | Path | Content |
 |---|---|
 | `ManaSigil.toc` | Addon manifest |
+| `Locale.lua` | Translations (enUS, deDE) |
 | `Core.lua` | Namespace, saved variables, events, slash commands |
 | `Themes.lua` | Theme definitions |
 | `Tracker.lua` | Five-second rule and mana tick logic |

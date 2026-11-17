@@ -58,17 +58,14 @@ ns.defaults = {
 
 -- Verfügbare Symbole für die Ringe
 ns.shapeOrder = { "dot", "solid", "circle", "diamond", "star", "square", "heart", "flame", "cross", "skull", "leaf" }
-ns.shapeNames = {
-    dot = "Leuchtpunkt", solid = "Kugel", circle = "Ring", diamond = "Raute", star = "Stern",
-    square = "Quadrat", heart = "Herz", flame = "Flamme", cross = "Kreuz", skull = "Totenkopf", leaf = "Blatt",
-}
+local L = ns.L
+ns.shapeNames = L.SHAPES
 
 -- Einstellbare Farben (Reihenfolge = Optionsmenü)
-ns.colorKeys = {
-    { "ring", "Mana-Ring" }, { "empty", "Leerer Ring" }, { "fsr", "5-Sek.-Regel" },
-    { "tick", "Mana-Tick" }, { "bg", "Hintergrund" },    { "rim", "Rand" },
-    { "text", "Text" },      { "spark", "Funke" },       { "decor", "Dekoration" },
-}
+ns.colorKeys = {}
+for _, k in ipairs({ "ring", "empty", "fsr", "tick", "bg", "rim", "text", "spark", "decor" }) do
+    ns.colorKeys[#ns.colorKeys + 1] = { k, L.COLORS[k] }
+end
 
 local function CopyDefaults(src, dst)
     for k, v in pairs(src) do
@@ -160,7 +157,7 @@ function ns.SetEnabled(on)
     ns.Display:UpdateVisibility()
     if ns.Minimap then ns.Minimap:Refresh() end
     if ns.Options then ns.Options:RefreshWidgets() end
-    ns.Print(ns.db.enabled and "Anzeige |cff40ff40an|r." or "Anzeige |cffff4040aus|r.")
+    ns.Print(ns.db.enabled and L.ON or L.OFF)
 end
 
 function ns.ToggleEnabled()
@@ -246,7 +243,7 @@ local function ListThemes()
     for _, key in ipairs(ns.themeOrder) do
         parts[#parts + 1] = key .. " (" .. ns.themes[key].name .. ")"
     end
-    ns.Print("Themen: auto, " .. table.concat(parts, ", "))
+    ns.Print(string.format(L.THEMES_LIST, "auto, " .. table.concat(parts, ", ")))
 end
 
 SLASH_MANASIGIL1 = "/manasigil"
@@ -260,25 +257,25 @@ SlashCmdList.MANASIGIL = function(msg)
     elseif cmd == "minimap" then
         ns.db.minimap.hide = not ns.db.minimap.hide
         ns.Minimap:Refresh(); ns.Options:RefreshWidgets()
-        ns.Print(ns.db.minimap.hide and "Minimap-Button ausgeblendet (/msig minimap zum Einblenden)." or "Minimap-Button eingeblendet.")
+        ns.Print(ns.db.minimap.hide and L.MINIMAP_HIDDEN or L.MINIMAP_SHOWN)
     elseif cmd == "lock" then
-        ns.db.locked = true;  ns.Display:Refresh(); ns.Print("Fixiert.")
+        ns.db.locked = true;  ns.Display:Refresh(); ns.Print(L.LOCKED)
     elseif cmd == "unlock" then
-        ns.db.locked = false; ns.Display:Refresh(); ns.Print("Entsperrt – mit der linken Maustaste ziehen.")
+        ns.db.locked = false; ns.Display:Refresh(); ns.Print(L.UNLOCKED)
     elseif cmd == "reset" then
         ns.db.point = CopyDefaults(ns.defaults.point, {})
-        ns.Display:Refresh(); ns.Print("Position zurückgesetzt.")
+        ns.Display:Refresh(); ns.Print(L.POS_RESET)
     elseif cmd == "theme" then
         if arg and (arg == "auto" or ns.themes[arg]) then
             ns.db.theme = arg; ns.Display:Refresh(); ns.Options:RefreshWidgets()
-            ns.Print("Thema: " .. (arg == "auto" and "Automatisch" or ns.themes[arg].name))
+            ns.Print(string.format(L.THEME_SET, arg == "auto" and L.AUTO or ns.themes[arg].name))
         else
             ListThemes()
         end
     elseif cmd == "test" then
-        ns.Tracker:StartFSR(); ns.Display:Show(true); ns.Print("Test: 5-Sekunden-Regel gestartet.")
+        ns.Tracker:StartFSR(); ns.Display:Show(true); ns.Print(L.TEST_STARTED)
     else
-        ns.Print("Befehle: /msig (Optionen), toggle, on, off, minimap, lock, unlock, reset, theme <name>, test")
+        ns.Print(L.HELP)
         ListThemes()
     end
 end

@@ -39,6 +39,8 @@ local function Register(key, def)
     def.key = key
     def.decor = def.decor or {}
     def.shapes = def.shapes or SHAPES[key] or { outer = "dot", inner = "dot" }
+    -- übersetzter Name aus Locale.lua (sonst der hier angegebene)
+    def.name = rawget(ns.L.THEMES, key) or def.name or key
     ns.themes[key] = def
     ns.themeOrder[#ns.themeOrder + 1] = key
 end

@@ -3,7 +3,7 @@
 ## Notes: Mana ring + five-second rule + tick timer with class themes (angel wings, demon pact, arcane runes ...).
 ## Notes-deDE: Mana-Ring + 5-Sekunden-Regel + Tick-Timer mit Klassen-Themen (Engelsflügel, Dämonenpakt, Arkane Runen ...).
 ## Author: Rottgar85
-## Version: 1.1.0
+## Version: 1.1.1
 ## Category: Combat
 ## IconTexture: Interface\AddOns\ManaSigil\Media\sigil
 ## SavedVariablesPerCharacter: ManaSigilDB

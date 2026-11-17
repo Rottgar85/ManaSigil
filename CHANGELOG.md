@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.1 – 2026-11-17
+
+- Releases are now uploaded to CurseForge automatically
+- Includes everything from 1.1.0: English localization (follows the game client language), German on `deDE` clients
+
 ## 1.1.0 – 2026-11-17
 
 - English localization: the addon now follows the game client language – German on `deDE` clients, English on all others (options, tooltips, chat messages, theme/symbol names)

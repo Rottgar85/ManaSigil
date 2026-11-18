@@ -225,7 +225,7 @@ local function OpenColorPicker(r, g, b, onChange)
     end
 end
 
-local function Swatch(parent, text, key, x, y)
+local function Swatch(parent, text, key, x, y, modeKey, modeValue)
     local tip = L.TT_COLOR_PICK .. "\n" .. L.TT_COLOR_RESET
     if L.TT_COLOR_EXTRA and L.TT_COLOR_EXTRA[key] then tip = tip .. "\n\n" .. L.TT_COLOR_EXTRA[key] end
     local row = Row(parent, x, y, text, tip, nil, 185)
@@ -259,7 +259,9 @@ local function Swatch(parent, text, key, x, y)
             ns.db.colors[key] = { nr, ng, nb }
             -- Wer die Textfarbe wählt, will sie auch sehen: Verlauf dafür abschalten
             -- (und umgekehrt bei den Verlaufsfarben wieder einschalten)
-            if key == "text" then
+            if modeKey then
+                ns.db.style[modeKey] = modeValue      -- Leisten: feste Farbe bzw. Verlauf
+            elseif key == "text" then
                 ns.db.style.textColorMode = "fixed"
             elseif key == "high" or key == "mid" then
                 ns.db.style.textColorMode = "gradient"
@@ -546,10 +548,7 @@ function O:Build()
         SG("textColorMode"), SS("textColorMode"), L.TIP_TEXTCOLOR, textOn)
     y = y - 30
     Slider(c, L.O_GRAD_MID, 20, y, 10, 90, 5, "%d%%", SG("gradMidPct"), SS("gradMidPct"), L.TIP_GRAD_MID,
-        function() return style().textColorMode == "gradient" or style().gradientRing end)
-    y = y - 30
-    Check(c, L.O_GRAD_RING, 20, y, SG("gradientRing"), SS("gradientRing"), L.TIP_GRAD_RING,
-        function() return db().modules.ring end)
+        function() return style().textColorMode == "gradient" end)
     y = y - 32
     Check(c, L.O_WARN, 20, y, SG("warnEnabled"), SS("warnEnabled"), L.TIP_WARN)
     y = y - 30
@@ -583,6 +582,34 @@ function O:Build()
     y = y - 32
     Check(c, L.O_WARN_COMBAT, 20, y, SG("warnCombatOnly"), SS("warnCombatOnly"), L.TIP_WARN_COMBAT, warnOn)
     y = y - 40
+
+    -- Farben der beiden Leisten -----------------------------------------------
+    Header(c, L.H_BARCOLORS, y); y = y - 34
+    local function BarBlock(which, modeKey, midKey, fixedKeys, active)
+        local g = ns.gradients[which]
+        Label(c, L["BARCOL_" .. which:upper()], 20, y, "GameFontNormal")
+        y = y - 26
+        Cycler(c, L.O_BARCOL_MODE, 20, y, List("fixed", "gradient"), Lookup(L["BARCOL_MODES_" .. which:upper()]),
+            SG(modeKey), SS(modeKey), L["TIP_BARCOL_" .. which:upper()], active)
+        y = y - 30
+        local gradOn = function() return active() and style()[modeKey] == "gradient" end
+        Slider(c, L.O_BARCOL_MID, 20, y, 10, 90, 5, "%d%%", SG(midKey), SS(midKey), L.TIP_BARCOL_MID, gradOn)
+        y = y - 30
+        -- feste Farbe(n) zuerst, dann die drei Verlaufsfarben
+        local keys = {}
+        for _, k in ipairs(fixedKeys) do keys[#keys + 1] = { k, "fixed" } end
+        for i = 1, 3 do keys[#keys + 1] = { g[i], "gradient" } end
+        for i, kk in ipairs(keys) do
+            local col = (i - 1) % 3
+            local row = math.floor((i - 1) / 3)
+            Swatch(c, L.COLORS[kk[1]], kk[1], 20 + col * 195, y - row * 30, modeKey, kk[2])
+        end
+        y = y - math.ceil(#keys / 3) * 30 - 10
+    end
+    BarBlock("mana", "manaColorMode", "manaGradMid", { "ring" }, function() return db().modules.ring end)
+    BarBlock("timer", "timerColorMode", "timerGradMid", { "tick", "fsr" },
+        function() return db().modules.ticks or db().modules.fsr end)
+    y = y - 10
 
     -- Farben -----------------------------------------------------------------
     Header(c, L.H_COLORS, y); y = y - 34

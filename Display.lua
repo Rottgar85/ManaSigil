@@ -700,16 +700,18 @@ function D:BuildCurves()
     self.cv = nil
     if not (C_CurveUtil and C_CurveUtil.CreateCurve and Enum and Enum.LuaCurveType and UnitPowerPercent) then return end
     local ok, cv = pcall(function()
-        local m = max(0.01, min(0.99, st("gradMidPct") / 100))
-        local hr, hg, hb = ns.GetColor("high")
-        local mr, mg, mb = ns.GetColor("mid")
-        local lr, lg, lb = ns.GetColor("low")
-        local c = {
-            pct = NewCurve("Linear", { { 0, 0 }, { 1, 100 } }),
-            r = NewCurve("Linear", { { 0, lr }, { m, mr }, { 1, hr } }),
-            g = NewCurve("Linear", { { 0, lg }, { m, mg }, { 1, hg } }),
-            b = NewCurve("Linear", { { 0, lb }, { m, mb }, { 1, hb } }),
-        }
+        local c = { pct = NewCurve("Linear", { { 0, 0 }, { 1, 100 } }) }
+        -- je ein Satz Farbkurven für die Zahlen (r/g/b) und die Mana-Leiste (br/bg/bb)
+        for prefix, which in pairs({ [""] = "text", b = "mana" }) do
+            local gr = ns.gradients[which]
+            local m = max(0.01, min(0.99, st(gr[4]) / 100))
+            local hr, hg, hb = ns.GetColor(gr[1])
+            local mr, mg, mb = ns.GetColor(gr[2])
+            local lr, lg, lb = ns.GetColor(gr[3])
+            c[prefix .. "r"] = NewCurve("Linear", { { 0, lr }, { m, mr }, { 1, hr } })
+            c[prefix .. "g"] = NewCurve("Linear", { { 0, lg }, { m, mg }, { 1, hg } })
+            c[prefix .. "b"] = NewCurve("Linear", { { 0, lb }, { m, mb }, { 1, hb } })
+        end
         local t
         if st("warnUnit") == "mana" then
             local mx = UnitPowerMax("player", ns.MANA)
@@ -806,9 +808,11 @@ function D:SecretStyle(now, textOn)
             end
         end
     end
-    if st("gradientRing") and self.mode == "bar" and not self.noSecretBarColor then
-        local r, g, b = Eval(cv.r), Eval(cv.g), Eval(cv.b)
-        if r and g and b and not pcall(self.bar.SetStatusBarColor, self.bar, r, g, b) then
+    if st("manaColorMode") == "gradient" and not self.noSecretBarColor then
+        -- Balken-Modus: die Mana-Leiste; Kreis/Torte: der Ersatzbalken
+        local target = (self.mode == "bar") and self.bar or self.fallback
+        local r, g, b = Eval(cv.br), Eval(cv.bg), Eval(cv.bb)
+        if target and r and g and b and not pcall(target.SetStatusBarColor, target, r, g, b) then
             self.noSecretBarColor = true
         end
     end
@@ -832,12 +836,14 @@ function D:SecretStyle(now, textOn)
     self.warnHolder:Hide()
 end
 
--- Farbverlauf: voll = "high" (grün), bei gradMidPct = "mid" (gelb), leer = "low" (rot)
-function D:GradientColor(frac)
-    local hr, hg, hb = ns.GetColor("high")
-    local mr, mg, mb = ns.GetColor("mid")
-    local lr, lg, lb = ns.GetColor("low")
-    local m = max(0.01, min(0.99, st("gradMidPct") / 100))
+-- Farbverlauf: voll = "high" (grün), in der Mitte = "mid" (gelb), leer = "low" (rot)
+-- which = "text" (Zahlen), "mana" (Mana-Leiste) oder "timer" (Tick-/5-Sek.-Leiste)
+function D:GradientColor(frac, which)
+    local g = ns.gradients[which or "text"]
+    local hr, hg, hb = ns.GetColor(g[1])
+    local mr, mg, mb = ns.GetColor(g[2])
+    local lr, lg, lb = ns.GetColor(g[3])
+    local m = max(0.01, min(0.99, st(g[4]) / 100))
     if frac >= m then
         local t = min(1, (frac - m) / (1 - m))
         return mr + (hr - mr) * t, mg + (hg - mg) * t, mb + (hb - mb) * t
@@ -890,7 +896,7 @@ function D:Update(now)
     local r, g, b = ns.GetColor("ring")
     local low = self:IsLowMana(cur, frac, readable)
     self:UpdateWarning(now, low, cur, frac, readable)
-    if readable and st("gradientRing") then r, g, b = self:GradientColor(frac) end
+    if readable and st("manaColorMode") == "gradient" then r, g, b = self:GradientColor(frac, "mana") end
     local showSpark = mods.spark and mods.ring and readable and frac > 0 and frac < 1
 
     if mode == "bar" then
@@ -971,6 +977,9 @@ function D:Update(now)
         if self.tickShownUntil and now < self.tickShownUntil and T.tickAmount then
             info = "+" .. ShortNumber(T.tickAmount)
         end
+    end
+    if state ~= "idle" and st("timerColorMode") == "gradient" then
+        ir, ig, ib = self:GradientColor(ifrac, "timer")
     end
     local hideIdle = state == "idle" and st("innerHideIdle")
 

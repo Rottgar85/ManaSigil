@@ -195,8 +195,34 @@ do
     local s = ManaSigilDB.style
     assert(s.outerDir == "ccw" and s.barDir == "reverse" and s.innerDir == "cw", "Richtung übernommen")
     assert(math.abs(s.barWidth - 1.6) < 1e-9 and math.abs(s.barHeight - 0.4) < 1e-9, "Balkenmaße umgerechnet")
-    assert(s.outerClockwise == nil and ManaSigilDB.dbVersion == 3, "alte Felder entfernt")
+    assert(s.outerClockwise == nil and ManaSigilDB.dbVersion == 4, "alte Felder entfernt")
     ManaSigilDB = loaded; ns.db = loaded
+end
+-- Umstellung aus 1.3.x: "Mana-Anzeige auch einfärben" -> eigener Verlauf der Mana-Leiste
+do
+    local old = { dbVersion = 3, style = { gradientRing = true, gradMidPct = 40 }, colors = { high = { 0, 0, 1 } } }
+    ManaSigilDB = old
+    local loaded = ns.db
+    ev(nil, "ADDON_LOADED", "ManaSigil")
+    local s, c = ManaSigilDB.style, ManaSigilDB.colors
+    assert(s.manaColorMode == "gradient" and s.gradientRing == nil and s.manaGradMid == 40, "Mana-Verlauf übernommen")
+    assert(c.manaHigh and c.manaHigh[3] == 1, "eigene Verlaufsfarbe übernommen")
+    ManaSigilDB = loaded; ns.db = loaded
+end
+-- Leisten: getrennte Verläufe für Mana und Timer
+do
+    local D = ns.Display
+    ns.db.colors.manaHigh = { 0, 0, 1 }
+    ns.db.colors.timerHigh = { 1, 0, 1 }
+    local r, g, b = D:GradientColor(1, "mana");  assert(b == 1 and r == 0, "Mana-Verlauf eigene Farbe")
+    r, g, b = D:GradientColor(1, "timer");       assert(r == 1 and b == 1 and g == 0, "Timer-Verlauf eigene Farbe")
+    r, g, b = D:GradientColor(1);                 assert(g > r and g > b, "Zahlen-Verlauf unverändert")
+    ns.db.style.manaColorMode = "gradient"; ns.db.style.timerColorMode = "gradient"
+    for _, m in ipairs({ "bar", "ring", "pie" }) do
+        SlashCmdList.MANASIGIL("mode " .. m); D:Update(now)
+    end
+    ns.db.colors.manaHigh, ns.db.colors.timerHigh = nil, nil
+    ns.db.style.manaColorMode = "fixed"; ns.db.style.timerColorMode = "fixed"
 end
 st.outerDir = "cw"; SlashCmdList.MANASIGIL("mode pie"); assert(D.outer.n == 90 and D.outer.kind == "pie", "Torte mit 90 Stücken")
 -- MP5: 12 bzw. 3 Mana/Sek. -> 60 / 15 pro 5 Sekunden
@@ -300,6 +326,7 @@ do
     local evals = {}
     UnitPowerPercent = function(_, _, _, curve) local v = curve:Eval(secretFrac); evals[#evals + 1] = v; return setmetatable({ v = v }, SMT) end
     st.warnEnabled, st.warnUnit, st.warnValue, st.textColorMode, st.warnBlink = true, "percent", 20, "gradient", "text"
+    st.manaColorMode, st.timerColorMode = "gradient", "gradient"
     for _, mode in ipairs({ "bar", "ring" }) do
         for _, tm in ipairs({ "percent", "value", "both" }) do
             ns.db.textMode = tm
@@ -309,6 +336,8 @@ do
     assert(ns.Display.cv and ns.Display.cv.low, "Kurven gebaut")
     assert(ns.Display.cv.low:Eval(0.1) == 1 and ns.Display.cv.low:Eval(0.5) == 0, "Warnkurve: 10 % = wenig, 50 % = genug")
     assert(#evals > 0, "UnitPowerPercent wird genutzt")
+    assert(ns.Display.cv.br and ns.Display.cv.bb, "Farbkurven der Mana-Leiste gebaut")
+    st.manaColorMode, st.timerColorMode = "fixed", "fixed"
     C_CurveUtil, UnitPowerPercent = nil, nil; ns.db.textMode = "both"
     UnitPower, UnitPowerMax, GetManaRegen, issecretvalue = oldUP, oldUPM, oldRegen, nil
     T:Reset()

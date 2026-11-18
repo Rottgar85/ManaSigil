@@ -6,7 +6,7 @@ ns.name  = addonName
 ns.MEDIA = "Interface\\AddOns\\" .. addonName .. "\\Media\\"
 ns.MANA  = (Enum and Enum.PowerType and Enum.PowerType.Mana) or 0
 
-local DB_VERSION = 3
+local DB_VERSION = 4
 
 -- Standardwerte (pro Charakter gespeichert)
 ns.defaults = {
@@ -77,8 +77,12 @@ ns.defaults = {
         sparkSize   = 1.0,
         -- Farbverlauf der Zahlen: fixed = feste Textfarbe, gradient = grün -> gelb -> rot
         textColorMode = "gradient",
-        gradientRing  = false,   -- auch die Mana-Anzeige selbst einfärben
         gradMidPct    = 50,      -- bei diesem Füllstand (%) ist die Farbe gelb
+        -- Farben der beiden Leisten (unabhängig von den Zahlen)
+        manaColorMode = "fixed",   -- Mana-Leiste/-Ring: fixed = Farbe "Mana-Ring", gradient = eigener Verlauf
+        manaGradMid   = 50,
+        timerColorMode = "fixed",  -- Tick-/5-Sek.-Leiste: fixed = Farben "Mana-Tick"/"5-Sek.-Regel", gradient = Verlauf
+        timerGradMid  = 50,
         -- Warnung bei wenig Mana
         warnEnabled   = true,
         warnUnit      = "percent", -- percent | mana
@@ -129,6 +133,17 @@ local function Migrate(db)
         if v == 2 then
             s.barWidth = (s.barWidth or 1) * 1.6
             s.barHeight = (s.barHeight or 1) * 0.2
+        end
+    end
+    if v < 4 then
+        -- "Mana-Anzeige auch einfärben" wird zum eigenen Verlauf der Mana-Leiste
+        local s, cols = db.style, db.colors
+        if s.gradientRing then s.manaColorMode = "gradient" end
+        s.gradientRing = nil
+        if s.gradMidPct then s.manaGradMid = s.gradMidPct end
+        for _, k in ipairs({ "high", "mid", "low" }) do
+            local key = "mana" .. k:sub(1, 1):upper() .. k:sub(2)
+            if cols[k] and not cols[key] then cols[key] = { cols[k][1], cols[k][2], cols[k][3] } end
         end
     end
     db.dbVersion = DB_VERSION
@@ -198,7 +213,18 @@ end
 
 -- Farbe: eigene Einstellung > Thema > abgeleitet > Klassik
 -- Farben des Verlaufs (gelten für alle Themen)
-local GRADIENT_COLORS = { high = { 0.25, 0.95, 0.35 }, mid = { 1.0, 0.85, 0.1 }, low = { 1.0, 0.15, 0.12 } }
+local GREEN, YELLOW, RED = { 0.25, 0.95, 0.35 }, { 1.0, 0.85, 0.1 }, { 1.0, 0.15, 0.12 }
+local GRADIENT_COLORS = {
+    high = GREEN, mid = YELLOW, low = RED,                        -- Zahlen
+    manaHigh = GREEN, manaMid = YELLOW, manaLow = RED,            -- Mana-Leiste
+    timerHigh = GREEN, timerMid = YELLOW, timerLow = RED,         -- Tick-/5-Sek.-Leiste
+}
+-- Verläufe: welche drei Farben und welche "Mitte" zu welchem Teil gehören
+ns.gradients = {
+    text  = { "high", "mid", "low", "gradMidPct" },
+    mana  = { "manaHigh", "manaMid", "manaLow", "manaGradMid" },
+    timer = { "timerHigh", "timerMid", "timerLow", "timerGradMid" },
+}
 
 -- Warntöne: Schlüssel -> Sound-ID (SOUNDKIT, falls vorhanden)
 ns.warnSoundOrder = { "raid", "ready", "alarm", "whisper", "ping" }

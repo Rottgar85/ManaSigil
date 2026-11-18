@@ -21,6 +21,7 @@
 - **Three display modes** – Ring, Pie or Bar
 - **MP5 display** – your mana regeneration per 5 seconds, normal and during the five-second rule
 - **Color gradient & low mana warning** – numbers go green → yellow → red; below a threshold you choose (percent or mana) they blink and a warning sound plays
+- **Bar colors** – the mana bar and the timer bar each get their own fixed color or their own color gradient, independent of the numbers
 - **Mana ring (outer)** – current mana as a glowing ring with a spark at the fill edge
 - **Five-second rule (inner ring)** – drains over 5 seconds after you spend mana, with a countdown
 - **Mana tick timer** – shows the 2-second regen cycle and flashes `+amount` on every tick
@@ -38,7 +39,7 @@
   | Shadow Wings – violet wings | – |
   | Classic – just the ring | – |
 
-- **Design everything yourself:** 11 symbols per ring (dot, orb, ring, diamond, star, square, heart, flame, cross, skull, leaf) or a solid circle, all sizes, 12 colors, background shape, 9 toggleable modules, live preview
+- **Design everything yourself:** 11 symbols per ring (dot, orb, ring, diamond, star, square, heart, flame, cross, skull, leaf) or a solid circle, all sizes, 18 colors, background shape, 9 toggleable modules, live preview
 - **Minimap button:** left-click on/off, right-click options, drag to move
 - **English & German** – follows your game client language automatically
 - No libraries, lightweight, settings saved per character

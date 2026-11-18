@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.4.0 – 2026-11-18
+
+- **Colors of the bars:** new section in the options. The mana bar (ring / pie / bar) and the timer bar (tick timer / five-second rule) each have their own setting:
+  - fixed color, or
+  - their own gradient with three colors (full / half / low for mana, empty / middle / full for the timer) and an adjustable middle point
+- Independent of the color gradient of the numbers. Choosing a color switches the bar to the matching mode
+- The former option "Color the mana display too" is carried over into the new mana bar gradient
+
 ## 1.3.3 – 2026-11-18
 
 - **Fixed:** in bar mode with hidden mana values the display stopped updating every frame ("FontString:SetText(): Font not set"). Because of this the text mode (percent/value), the colors and the low-mana warning had no effect. All texts now get a font right away

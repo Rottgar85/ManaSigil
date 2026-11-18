@@ -4,6 +4,7 @@
 
 - Tick timer and five-second rule now also work when the game hides the mana values (detected from the mana events and your spell casts)
 - More robust start: the mana and tick tracking now runs even if another part of the addon (e.g. the options panel) fails to load; such errors are reported once in the chat with the exact cause instead of stopping the addon
+- **Hidden mana values:** percentage, color gradient and the red blinking low-mana warning now also work when the game hides your current mana (computed by the game itself via curves). The warning sound needs readable mana values
 - `/msig debug` additionally shows the time between the last mana ticks
 
 ## 1.3.0 – 2026-11-18

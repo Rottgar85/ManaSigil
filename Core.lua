@@ -336,6 +336,7 @@ handlers.UNIT_POWER_FREQUENT = handlers.UNIT_POWER_UPDATE
 
 function handlers.UNIT_MAXPOWER()
     ns.Tracker:OnPower()
+    ns.Display:BuildCurves()   -- Warnschwelle in Manapunkten hängt vom Maximum ab
     ns.Display:UpdateVisibility()
 end
 

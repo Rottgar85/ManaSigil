@@ -44,6 +44,8 @@ GetLocale = function() return os.getenv("LOCALE") or "deDE" end
 for _, f in ipairs({ "Locale", "Core", "Themes", "Tracker", "Display", "Options", "Minimap" }) do
     assert(loadfile(dir .. "/" .. f .. ".lua"))("ManaSigil", ns)
 end
+-- im Test jeden abgefangenen Fehler sofort sichtbar machen
+ns.ReportError = function(where, err) error(where .. ": " .. tostring(err), 0) end
 local ev = scripts[ns.eventFrame].OnEvent
 ev(nil, "ADDON_LOADED", "ManaSigil")
 ev(nil, "PLAYER_LOGIN")
@@ -260,6 +262,33 @@ do
     ev(nil, "UNIT_SPELLCAST_SUCCEEDED", "player", "g", 2050); now = now + 0.1
     ev(nil, "UNIT_POWER_UPDATE", "player", "MANA"); upd(nil, 1)
     assert(T:InFSR(now), "5-Sek.-Regel bei geheimen Werten über den Zauber erkannt")
+    -- Kurven des Spiels: Prozent, Farbverlauf und Warnung trotz geheimer Werte
+    local secretFrac = 0.1
+    Enum.LuaCurveType = { Linear = 1, Step = 2 }
+    C_CurveUtil = { CreateCurve = function()
+        local c = { pts = {} }
+        function c:SetType(t) self.t = t end
+        function c:AddPoint(x, y) self.pts[#self.pts + 1] = { x, y } end
+        function c:Eval(x)
+            local p = self.pts
+            if self.t == 2 then local v = p[1][2]; for _, q in ipairs(p) do if x >= q[1] then v = q[2] end end; return v end
+            for i = 2, #p do if x <= p[i][1] then local a, b = p[i - 1], p[i]; return a[2] + (b[2] - a[2]) * (x - a[1]) / (b[1] - a[1]) end end
+            return p[#p][2]
+        end
+        return c end }
+    local evals = {}
+    UnitPowerPercent = function(_, _, _, curve) local v = curve:Eval(secretFrac); evals[#evals + 1] = v; return setmetatable({ v = v }, SMT) end
+    st.warnEnabled, st.warnUnit, st.warnValue, st.textColorMode, st.warnBlink = true, "percent", 20, "gradient", "text"
+    for _, mode in ipairs({ "bar", "ring" }) do
+        for _, tm in ipairs({ "percent", "value", "both" }) do
+            ns.db.textMode = tm
+            SlashCmdList.MANASIGIL("mode " .. mode); upd(nil, 1)
+        end
+    end
+    assert(ns.Display.cv and ns.Display.cv.low, "Kurven gebaut")
+    assert(ns.Display.cv.low:Eval(0.1) == 1 and ns.Display.cv.low:Eval(0.5) == 0, "Warnkurve: 10 % = wenig, 50 % = genug")
+    assert(#evals > 0, "UnitPowerPercent wird genutzt")
+    C_CurveUtil, UnitPowerPercent = nil, nil; ns.db.textMode = "both"
     UnitPower, UnitPowerMax, GetManaRegen, issecretvalue = oldUP, oldUPM, oldRegen, nil
     T:Reset()
 end

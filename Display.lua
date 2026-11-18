@@ -254,6 +254,13 @@ function D:Build()
     self.valText  = fr:CreateFontString(nil, "OVERLAY")
     self.infoText = fr:CreateFontString(nil, "OVERLAY")
     self.mp5Text  = fr:CreateFontString(nil, "OVERLAY")
+    -- Rote Warn-Zahl für geheime Manawerte (Sichtbarkeit über eine Kurve des Spiels)
+    self.warnHolder = CreateFrame("Frame", nil, fr)
+    self.warnHolder:SetAllPoints(fr)
+    self.warnHolder:SetFrameLevel(fr:GetFrameLevel() + 1)
+    self.warnBig = self.warnHolder:CreateFontString(nil, "OVERLAY")
+    self.warnBig:SetPoint("CENTER", self.bigText, "CENTER", 0, 0)
+    self.warnHolder:Hide()
 
     self.decorTex = {}
     self.activeDecor = {}
@@ -608,6 +615,7 @@ end
 
 function D:Refresh()
     if not self.frame then return end
+    self:BuildCurves()
     self:Layout()
     self:ApplyColors()
     self:ApplyDecor()
@@ -672,6 +680,114 @@ function D:MP5Line(now)
 end
 
 -- Laufende Aktualisierung --------------------------------------------------------
+-- Geheime Manawerte -------------------------------------------------------------
+-- Das Spiel darf uns den Wert nicht verraten, kann ihn aber selbst über Kurven
+-- umrechnen (UnitPowerPercent + C_CurveUtil). So bekommen wir Prozentzahl,
+-- Farbverlauf und Warn-Sichtbarkeit, ohne selbst mit dem Wert zu rechnen.
+local function NewCurve(kind, points)
+    local c = C_CurveUtil.CreateCurve()
+    c:SetType(Enum.LuaCurveType[kind])
+    for _, p in ipairs(points) do c:AddPoint(p[1], p[2]) end
+    return c
+end
+
+function D:BuildCurves()
+    self.cv = nil
+    if not (C_CurveUtil and C_CurveUtil.CreateCurve and Enum and Enum.LuaCurveType and UnitPowerPercent) then return end
+    local ok, cv = pcall(function()
+        local m = max(0.01, min(0.99, st("gradMidPct") / 100))
+        local hr, hg, hb = ns.GetColor("high")
+        local mr, mg, mb = ns.GetColor("mid")
+        local lr, lg, lb = ns.GetColor("low")
+        local c = {
+            pct = NewCurve("Linear", { { 0, 0 }, { 1, 100 } }),
+            r = NewCurve("Linear", { { 0, lr }, { m, mr }, { 1, hr } }),
+            g = NewCurve("Linear", { { 0, lg }, { m, mg }, { 1, hg } }),
+            b = NewCurve("Linear", { { 0, lb }, { m, mb }, { 1, hb } }),
+        }
+        local t
+        if st("warnUnit") == "mana" then
+            local mx = UnitPowerMax("player", ns.MANA)
+            if ns.Readable(mx) and mx > 0 then t = st("warnValue") / mx end
+        else
+            t = st("warnValue") / 100
+        end
+        if t then
+            t = min(1, t) + 0.0001
+            c.low    = NewCurve("Step", { { 0, 1 }, { t, 0 } })   -- 1 = wenig Mana
+            c.notLow = NewCurve("Step", { { 0, 0 }, { t, 1 } })
+        end
+        return c
+    end)
+    if ok then self.cv = cv end
+end
+
+local function Eval(curve)
+    if not curve then return nil end
+    local ok, v = pcall(UnitPowerPercent, "player", ns.MANA, false, curve)
+    if ok then return v end
+end
+
+-- Text bei geheimen Werten; schreibt in die normale und in die rote Warn-Zahl
+function D:SecretText(cur, tm, mode)
+    local p = self.cv and Eval(self.cv.pct)
+    self.valText:SetText("")
+    for _, fs in ipairs({ self.bigText, self.warnBig }) do
+        local ok
+        if p and tm == "percent" then
+            ok = pcall(fs.SetFormattedText, fs, "%.0f%%", p)
+        elseif p and tm == "both" and mode == "bar" then
+            ok = pcall(fs.SetFormattedText, fs, "%s  (%.0f%%)", cur, p)
+        elseif p and tm == "both" then
+            ok = pcall(fs.SetFormattedText, fs, "%.0f%%", p)
+            if fs == self.bigText then pcall(self.valText.SetText, self.valText, cur) end
+        else
+            ok = pcall(fs.SetText, fs, cur)
+        end
+        if not ok then fs:SetText("") end
+    end
+end
+
+-- Farbverlauf und Warnung bei geheimen Werten (Blinken ja, Ton nicht möglich)
+function D:SecretStyle(now, textOn)
+    local cv = self.cv
+    if not cv then self.warnHolder:Hide(); return end
+    if textOn and st("textColorMode") == "gradient" and not self.noSecretColor then
+        local r, g, b = Eval(cv.r), Eval(cv.g), Eval(cv.b)
+        if r and g and b then
+            if pcall(self.bigText.SetTextColor, self.bigText, r, g, b) then
+                pcall(self.valText.SetTextColor, self.valText, r, g, b)
+            else
+                self.noSecretColor = true      -- dieser Client erlaubt das nicht
+            end
+        end
+    end
+    if st("gradientRing") and self.mode == "bar" and not self.noSecretBarColor then
+        local r, g, b = Eval(cv.r), Eval(cv.g), Eval(cv.b)
+        if r and g and b and not pcall(self.bar.SetStatusBarColor, self.bar, r, g, b) then
+            self.noSecretBarColor = true
+        end
+    end
+    local warn = textOn and cv.low and st("warnEnabled")
+        and not (st("warnCombatOnly") and not (UnitAffectingCombat and UnitAffectingCombat("player")))
+    local lowA, notA = warn and Eval(cv.low), warn and Eval(cv.notLow)
+    if lowA and notA then
+        local font, size, flags = self.bigText:GetFont()
+        if font then self.warnBig:SetFont(font, size, flags) end
+        self.warnBig:SetTextColor(ns.GetColor("low"))
+        local okA = pcall(self.warnBig.SetAlpha, self.warnBig, lowA)
+        okA = okA and pcall(self.bigText.SetAlpha, self.bigText, notA)
+        if okA then
+            pcall(self.valText.SetAlpha, self.valText, notA)
+            local blink = st("warnBlink") ~= "off"
+            self.warnHolder:SetAlpha(blink and (0.2 + 0.8 * math.abs(sin(now * 5))) or 1)
+            self.warnHolder:Show()
+            return
+        end
+    end
+    self.warnHolder:Hide()
+end
+
 -- Farbverlauf: voll = "high" (grün), bei gradMidPct = "mid" (gelb), leer = "low" (rot)
 function D:GradientColor(frac)
     local hr, hg, hb = ns.GetColor("high")
@@ -858,8 +974,7 @@ function D:Update(now)
                 self.bigText:SetText(pct); self.valText:SetText(ShortNumber(cur))
             end
         else
-            if not pcall(self.bigText.SetText, self.bigText, cur) then self.bigText:SetText("") end
-            self.valText:SetText("")
+            self:SecretText(cur, tm, mode)
         end
         -- Textfarbe: fest oder Verlauf; bei Warnung rot
         local tr, tg, tb
@@ -886,6 +1001,11 @@ function D:Update(now)
         self.frame:SetAlpha(db.alpha * ba); self.blinkAll = true
     elseif self.blinkAll then
         self.frame:SetAlpha(db.alpha); self.blinkAll = nil
+    end
+    if readable then
+        self.warnHolder:Hide()
+    else
+        self:SecretStyle(now, mods.text and tm ~= "none" and mods.ring)
     end
     self.infoText:SetText(info)
     self.infoText:SetTextColor(ir, ig, ib)

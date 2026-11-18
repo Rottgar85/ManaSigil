@@ -35,14 +35,36 @@ function T:GetMana()
     return UnitPower("player", ns.MANA), UnitPowerMax("player", ns.MANA)
 end
 
-function T:OnPower()
+-- Statistik der Mana-Events für /msig debug (Anzahl je Typ, Abstände der UPDATE-Events)
+function T:CountEvent(event, now)
+    local s = self.stats
+    if not s or now - s.start > 10 then
+        s = { start = now, update = 0, frequent = 0, gaps = {} }
+        self.stats = s
+    end
+    if event == "UNIT_POWER_FREQUENT" then
+        s.frequent = s.frequent + 1
+    else
+        s.update = s.update + 1
+        if s.lastUpdate then
+            table.insert(s.gaps, 1, now - s.lastUpdate)
+            s.gaps[8] = nil
+        end
+        s.lastUpdate = now
+    end
+end
+
+function T:OnPower(event)
     local cur = UnitPower("player", ns.MANA)
+    local now = GetTime()
+    if event then self:CountEvent(event, now) end
     if not ns.Readable(cur) then
-        -- Geheimer Wert: nicht vergleichen. Das Event selbst ist aber ein Signal:
-        -- kurz nach einem Zauber = Verbrauch (5-Sek.-Regel), sonst = Regenerations-Tick.
+        -- Geheimer Wert: nicht vergleichen. Das Event selbst ist aber ein Signal.
+        -- UNIT_POWER_FREQUENT kommt bei fließender Regeneration fast ständig, daher
+        -- zählen nur UNIT_POWER_UPDATE-Events (Server-Aktualisierung) als Tick.
         self.secret = true
         self.lastMana = nil
-        local now = GetTime()
+        if event == "UNIT_POWER_FREQUENT" then return end
         if self.lastCast and now - self.lastCast < CAST_WINDOW then
             if now >= self.fsrEnd then self:StartFSR(now) end
         elseif now >= self.fsrEnd then
@@ -51,7 +73,6 @@ function T:OnPower()
         return
     end
     self.secret = false
-    local now = GetTime()
     local last = self.lastMana
     if last then
         if cur < last then

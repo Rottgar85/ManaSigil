@@ -330,9 +330,11 @@ function handlers.PLAYER_REGEN_ENABLED()
 end
 
 function handlers.UNIT_POWER_UPDATE(unit, powerToken)
-    if powerToken == "MANA" then ns.Tracker:OnPower() end
+    if powerToken == "MANA" then ns.Tracker:OnPower("UNIT_POWER_UPDATE") end
 end
-handlers.UNIT_POWER_FREQUENT = handlers.UNIT_POWER_UPDATE
+function handlers.UNIT_POWER_FREQUENT(unit, powerToken)
+    if powerToken == "MANA" then ns.Tracker:OnPower("UNIT_POWER_FREQUENT") end
+end
 
 function handlers.UNIT_MAXPOWER()
     ns.Tracker:OnPower()
@@ -377,6 +379,13 @@ local function Debug()
     for _, g in ipairs(ns.Tracker.gaps or {}) do gaps[#gaps + 1] = string.format("%.2f", g) end
     ns.Print("tick gaps: " .. (#gaps > 0 and table.concat(gaps, " ") or "-")
         .. "  secret=" .. (ns.Tracker.secret and "yes" or "no"))
+    local s = ns.Tracker.stats
+    if s then
+        local ug = {}
+        for _, g in ipairs(s.gaps) do ug[#ug + 1] = string.format("%.2f", g) end
+        ns.Print(string.format("events (%.0fs): update=%d frequent=%d  update gaps: %s",
+            GetTime() - s.start, s.update, s.frequent, #ug > 0 and table.concat(ug, " ") or "-"))
+    end
 end
 
 SLASH_MANASIGIL1 = "/manasigil"

@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.3.2 – 2026-11-18
+
+- Tick detection with hidden mana values now only uses the server mana updates (`UNIT_POWER_UPDATE`); the almost continuous `UNIT_POWER_FREQUENT` events no longer count as ticks
+- `/msig debug` shows how many mana events of each type arrived and the time between the server updates
+
 ## 1.3.1 – 2026-11-18
 
 - Tick timer and five-second rule now also work when the game hides the mana values (detected from the mana events and your spell casts)

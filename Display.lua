@@ -260,6 +260,11 @@ function D:Build()
     self.warnHolder:SetFrameLevel(fr:GetFrameLevel() + 1)
     self.warnBig = self.warnHolder:CreateFontString(nil, "OVERLAY")
     self.warnBig:SetPoint("CENTER", self.bigText, "CENTER", 0, 0)
+    -- Jede Schrift braucht von Anfang an einen Font, sonst bricht SetText ab
+    -- ("Font not set") – z. B. valText im Balken-Modus, wo Layout ihn nie setzt
+    for _, fs in ipairs({ self.bigText, self.valText, self.infoText, self.mp5Text, self.warnBig }) do
+        SetFontSize(fs, 14)
+    end
     self.warnHolder:Hide()
 
     self.decorTex = {}
@@ -783,7 +788,7 @@ function D:SecretText(cur, tm, mode)
         else
             ok = pcall(fs.SetText, fs, cur)
         end
-        if not ok then fs:SetText("") end
+        if not ok then pcall(fs.SetText, fs, "") end
     end
 end
 

@@ -3,13 +3,26 @@
 local dir = arg[1]
 local now, mana, maxMana = 100, 1000, 1000
 local scripts = {}
-local function obj()
+local obj
+-- Wie im Spiel: SetText ohne gesetzten Font bricht ab ("Font not set")
+local function fontString(template)
+    local fs = obj()
+    local hasFont = template ~= nil
+    rawset(fs, "SetFont", function() hasFont = true end)
+    rawset(fs, "SetFontObject", function() hasFont = true end)
+    local function needFont() if not hasFont then error("FontString:SetText(): Font not set") end end
+    rawset(fs, "SetText", needFont)
+    rawset(fs, "SetFormattedText", needFont)
+    return fs
+end
+function obj()
     local o = {}
     return setmetatable(o, { __index = function(t, k)
         if k == "GetFrameLevel" then return function() return 1 end end
         if k == "GetPoint" then return function() return "CENTER", nil, "CENTER", 10, 20 end end
         if k == "GetChecked" then return function() return true end end
         if k == "SetScript" then return function(self, n, fn) scripts[self] = scripts[self] or {}; scripts[self][n] = fn end end
+        if k == "CreateFontString" then return function(_, _, _, template) return fontString(template) end end
         if k:match("^Create") then return function() return obj() end end
         return function() end
     end })

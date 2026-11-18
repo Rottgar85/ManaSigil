@@ -2,6 +2,7 @@
 
 ## 1.3.3 – 2026-11-18
 
+- **Fixed:** in bar mode with hidden mana values the display stopped updating every frame ("FontString:SetText(): Font not set"). Because of this the text mode (percent/value), the colors and the low-mana warning had no effect. All texts now get a font right away
 - `/msig debug` now shows the installed version, the current text/color/warning settings, a self-test of every step of the hidden-mana display (percent, color, warning) and the last errors
 - Errors when changing an option are reported in the chat instead of interrupting the options panel
 

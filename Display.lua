@@ -51,13 +51,14 @@ local function NewRing(parent)
     return { frame = f, pips = {}, n = 0, cache = {} }
 end
 
-local function PipAngle(i, n, clockwise)
+local function PipAngle(i, n, ccw)
     local frac = (i - 0.5) / n
-    if clockwise then return math.pi / 2 - frac * TWO_PI end
-    return math.pi / 2 + frac * TWO_PI
+    if ccw then return math.pi / 2 + frac * TWO_PI end
+    return math.pi / 2 - frac * TWO_PI
 end
 
-local function SetupRing(ring, kind, shape, count, size, radius, rotate, clockwise)
+-- dir: cw / ccw = Füllung rundherum, up / down = Füllung nach Höhe (wie Flüssigkeit)
+local function SetupRing(ring, kind, shape, count, size, radius, rotate, dir)
     local n, tex
     if kind == "solid" then
         tex = "sym_solid"
@@ -72,15 +73,26 @@ local function SetupRing(ring, kind, shape, count, size, radius, rotate, clockwi
         n = min(MAX_PIPS, max(3, floor(count + 0.5)))
         if ns.roundShapes[shape] then rotate = false end
     end
-    ring.n, ring.kind, ring.radius, ring.clockwise = n, kind, radius, clockwise
+    ring.n, ring.kind, ring.radius, ring.dir = n, kind, radius, dir
     ring.cache.key = nil
+    -- Reihenfolge der Füllung: ov[i] = Position (0..1), w = Breite eines Teils
+    ring.ov = ring.ov or {}
+    local vertical = (dir == "up" or dir == "down")
+    ring.w = vertical and max(1 / n * 2, size / max(1, radius * 2)) or 1 / n
     for i = 1, n do
         local t = ring.pips[i]
         if not t then
             t = ring.frame:CreateTexture(nil, "ARTWORK")
             ring.pips[i] = t
         end
-        local a = PipAngle(i, n, clockwise)
+        local a = PipAngle(i, n, dir == "ccw")
+        if dir == "up" then
+            ring.ov[i] = (1 + sin(a)) / 2          -- unten zuerst
+        elseif dir == "down" then
+            ring.ov[i] = (1 - sin(a)) / 2          -- oben zuerst
+        else
+            ring.ov[i] = (i - 0.5) / n
+        end
         t:SetTexture(Media(tex))
         t:ClearAllPoints()
         if kind == "pie" then
@@ -108,8 +120,7 @@ end
 local function FillRing(ring, frac, r, g, b, er, eg, eb, ea, mixR, mixG, mixB)
     local n = ring.n
     if n == 0 then return end
-    local filled = frac * n
-    local key = floor(filled * 16 + 0.5)
+    local key = floor(frac * n * 16 + 0.5)
     local c = ring.cache
     if c.key == key and c.r == r and c.g == g and c.b == b and c.er == er and c.ea == ea and c.mr == mixR then return end
     c.key, c.r, c.g, c.b, c.er, c.ea, c.mr = key, r, g, b, er, ea, mixR
@@ -120,8 +131,10 @@ local function FillRing(ring, frac, r, g, b, er, eg, eb, ea, mixR, mixG, mixB)
         er, eg, eb = mr + (er - mr) * ea, mg + (eg - mg) * ea, mb + (eb - mb) * ea
         ea = 1
     end
+    local w = ring.w or (1 / n)
     for i = 1, n do
-        local v = filled - (i - 1)
+        -- Füllgrad dieses Teils: 0 = leer, 1 = voll, dazwischen weicher Übergang
+        local v = (frac - (ring.ov[i] - w / 2)) / w
         local t = ring.pips[i]
         if v >= 1 then
             t:SetVertexColor(r, g, b, 1)
@@ -186,6 +199,21 @@ function D:Build()
     self.outer.frame:SetFrameLevel(lvl + 3)
     self.inner.frame:SetFrameLevel(lvl + 3)
 
+    -- Torte als Flüssigkeit (von unten/oben gefüllt)
+    local pf = CreateFrame("Frame", nil, m)
+    pf:SetAllPoints(); pf:SetFrameLevel(lvl + 3)
+    self.pieFrame = pf
+    self.pieEmpty = pf:CreateTexture(nil, "ARTWORK", nil, 0)
+    self.pieEmpty:SetTexture(Media("filldisc"))
+    self.pieFill = pf:CreateTexture(nil, "ARTWORK", nil, 1)
+    self.pieFill:SetTexture(Media("filldisc"))
+    pf:Hide()
+    -- Trennlinien zwischen Tortenstücken
+    local gf = CreateFrame("Frame", nil, m)
+    gf:SetAllPoints(); gf:SetFrameLevel(lvl + 4)
+    self.gapFrame = gf
+    self.gaps = {}
+
     self.spark = self.front:CreateTexture(nil, "BACKGROUND")
     self.spark:SetTexture(Media("glow"))
     self.spark:SetBlendMode("ADD")
@@ -245,51 +273,146 @@ local function PlaceText(fs, parent, point, x, y)
     fs:SetPoint(point, parent, point, x, y)
 end
 
+-- Balken-Modus: waagerecht (Timer-Balken darunter) oder senkrecht (Timer-Balken rechts daneben).
+-- barWidth/barHeight sind Breite und Höhe des Mana-Balkens relativ zur Grundgröße.
 function D:LayoutBar(S)
     local mods = ns.db.modules
-    local W = S * 1.6 * st("barWidth")
-    local H1 = max(4, S * 0.2 * st("barHeight"))
-    local H2 = (mods.fsr or mods.ticks) and max(3, H1 * 0.45) or 0
-    local gap = H2 > 0 and max(2, H1 * 0.15) or 0
-    local total = H1 + gap + H2
-    self.W, self.H1, self.H2 = W, H1, H2
-    self.frame:SetSize(W, total)
+    local horiz = st("barOrientation") ~= "vertical"
+    local Wf, Hf = max(4, S * st("barWidth")), max(4, S * st("barHeight"))
+    local L1 = horiz and Wf or Hf            -- Länge (in Füllrichtung)
+    local T1 = horiz and Hf or Wf            -- Dicke
+    local T2 = (mods.fsr or mods.ticks) and max(3, T1 * 0.45) or 0
+    local gap = T2 > 0 and max(2, T1 * 0.15) or 0
+    local thick = T1 + gap + T2
+    self.horiz, self.L1, self.T1, self.H2 = horiz, L1, T1, T2
+    if horiz then
+        self.frame:SetSize(L1, thick); self.W = L1
+    else
+        self.frame:SetSize(thick, L1); self.W = thick
+    end
 
     local bf = self.barFrame
     bf:ClearAllPoints(); bf:SetAllPoints(self.frame); bf:Show()
-    local pad = max(2, H1 * 0.12)
+    local pad = max(2, T1 * 0.12)
     self.barBack:ClearAllPoints()
     self.barBack:SetPoint("TOPLEFT", bf, "TOPLEFT", -pad, pad)
     self.barBack:SetPoint("BOTTOMRIGHT", bf, "BOTTOMRIGHT", pad, -pad)
     self.barBack:SetTexture(BAR_TEX.flat)
 
     local tex = BAR_TEX[st("barTexture")] or BAR_TEX.smooth
-    self.bar:SetStatusBarTexture(tex); self.barEmpty:SetTexture(tex)
-    self.bar2:SetStatusBarTexture(tex); self.bar2Empty:SetTexture(tex)
-    self.bar:ClearAllPoints()
-    self.bar:SetPoint("TOPLEFT", bf, "TOPLEFT"); self.bar:SetPoint("TOPRIGHT", bf, "TOPRIGHT")
-    self.bar:SetHeight(H1)
-    self.bar:SetReverseFill(not st("outerClockwise"))
+    local orient = horiz and "HORIZONTAL" or "VERTICAL"
+    for _, pair in ipairs({ { self.bar, self.barEmpty }, { self.bar2, self.bar2Empty } }) do
+        local bar, empty = pair[1], pair[2]
+        bar:SetStatusBarTexture(tex)
+        bar:SetOrientation(orient)
+        bar:SetRotatesTexture(not horiz)
+        empty:SetTexture(tex)
+        RotTexCoord(empty, horiz and 0 or math.pi / 2)
+        bar:ClearAllPoints()
+    end
+    if horiz then
+        self.bar:SetPoint("TOPLEFT", bf, "TOPLEFT"); self.bar:SetPoint("TOPRIGHT", bf, "TOPRIGHT")
+        self.bar:SetHeight(T1)
+        self.bar2:SetPoint("BOTTOMLEFT", bf, "BOTTOMLEFT"); self.bar2:SetPoint("BOTTOMRIGHT", bf, "BOTTOMRIGHT")
+        self.bar2:SetHeight(max(1, T2))
+    else
+        self.bar:SetPoint("TOPLEFT", bf, "TOPLEFT"); self.bar:SetPoint("BOTTOMLEFT", bf, "BOTTOMLEFT")
+        self.bar:SetWidth(T1)
+        self.bar2:SetPoint("TOPRIGHT", bf, "TOPRIGHT"); self.bar2:SetPoint("BOTTOMRIGHT", bf, "BOTTOMRIGHT")
+        self.bar2:SetWidth(max(1, T2))
+    end
+    self.bar:SetReverseFill(st("barDir") == "reverse")
+    self.bar2:SetReverseFill(st("innerBarDir") == "reverse")
     self.bar:SetShown(mods.ring)
-    self.bar2:ClearAllPoints()
-    self.bar2:SetPoint("BOTTOMLEFT", bf, "BOTTOMLEFT"); self.bar2:SetPoint("BOTTOMRIGHT", bf, "BOTTOMRIGHT")
-    self.bar2:SetHeight(max(1, H2))
-    self.bar2:SetReverseFill(not st("innerClockwise"))
-    self.bar2:SetShown(H2 > 0)
+    self.bar2:SetShown(T2 > 0)
 
     local ts = st("textScale")
-    SetFontSize(self.bigText, H1 * 0.62 * ts)
-    SetFontSize(self.infoText, max(H2 * 0.95, H1 * 0.4) * ts)
-    SetFontSize(self.mp5Text, H1 * 0.5 * ts)
-    PlaceText(self.bigText, self.bar, "CENTER", 0, 0)
-    PlaceText(self.infoText, self.bar2, "CENTER", 0, 0)
-    self.mp5Text:ClearAllPoints()
-    self.mp5Text:SetPoint("TOP", bf, "BOTTOM", 0, -pad - 2)
     self.valText:Hide()
+    self.mp5Text:ClearAllPoints()
+    if horiz then
+        SetFontSize(self.bigText, T1 * 0.62 * ts)
+        SetFontSize(self.infoText, max(T2 * 0.95, T1 * 0.4) * ts)
+        SetFontSize(self.mp5Text, T1 * 0.5 * ts)
+        PlaceText(self.bigText, self.bar, "CENTER", 0, 0)
+        PlaceText(self.infoText, self.bar2, "CENTER", 0, 0)
+        self.mp5Text:SetPoint("TOP", bf, "BOTTOM", 0, -pad - 2)
+    else
+        -- senkrecht: Zahlen über und unter dem Balken
+        SetFontSize(self.bigText, S * 0.14 * ts)
+        SetFontSize(self.infoText, S * 0.10 * ts)
+        SetFontSize(self.mp5Text, S * 0.085 * ts)
+        self.bigText:ClearAllPoints(); self.bigText:SetPoint("BOTTOM", bf, "TOP", 0, pad + 2)
+        self.infoText:ClearAllPoints(); self.infoText:SetPoint("TOP", bf, "BOTTOM", 0, -pad - 2)
+        self.mp5Text:SetPoint("TOP", self.infoText, "BOTTOM", 0, -2)
+    end
 
-    local sp = H1 * 1.6 * st("sparkSize")
-    self.spark:SetSize(sp * 0.5, sp)
-    self.flash:SetSize(W * 1.2, total * 2.5)
+    local sp = T1 * 1.6 * st("sparkSize")
+    if horiz then self.spark:SetSize(sp * 0.5, sp) else self.spark:SetSize(sp, sp * 0.5) end
+    if horiz then self.flash:SetSize(L1 * 1.2, thick * 2.5) else self.flash:SetSize(thick * 2.5, L1 * 1.2) end
+end
+
+-- Torte als Flüssigkeit vorbereiten
+function D:SetupLiquid(R)
+    self.pieR = R
+    self.pieFrame:Show()
+    self.pieEmpty:SetSize(R * 2, R * 2)
+    self.pieEmpty:ClearAllPoints()
+    self.pieEmpty:SetPoint("CENTER", self.pieFrame, "CENTER", 0, 0)
+    self.pieEmpty:SetTexCoord(0, 1, 0, 1)
+end
+
+-- Füllstand der Flüssigkeits-Torte: ein Ausschnitt der Scheibe, von unten bzw. oben
+function D:UpdateLiquid(f, r, g, b, er, eg, eb, ea)
+    local R, t = self.pieR or 1, self.pieFill
+    self.pieEmpty:SetVertexColor(er, eg, eb, ea)
+    if f <= 0 then t:Hide(); return end
+    if f > 1 then f = 1 end
+    t:ClearAllPoints()
+    t:SetSize(R * 2, R * 2 * f)
+    if st("outerDir") == "down" then
+        t:SetPoint("TOP", self.pieFrame, "CENTER", 0, R)
+        t:SetTexCoord(0, 1, 0, f)
+    else
+        t:SetPoint("BOTTOM", self.pieFrame, "CENTER", 0, -R)
+        t:SetTexCoord(0, 1, 1 - f, 1)
+    end
+    t:SetVertexColor(r, g, b, 1)
+    t:Show()
+end
+
+-- Trennlinien für die Torte "in Stücken": Speichen (rundherum) oder waagerechte Linien (von unten/oben)
+function D:SetupGaps(R, S, dir)
+    for _, t in ipairs(self.gaps) do t:Hide() end
+    self.segN = nil
+    if st("pieStyle") ~= "segments" then return end
+    local N = max(2, floor(st("pieSegments") + 0.5))
+    self.segN = N
+    local vertical = (dir == "up" or dir == "down")
+    local count = vertical and (N - 1) or N
+    local th = max(1, S * 0.012)
+    for k = 1, count do
+        local t = self.gaps[k]
+        if not t then
+            t = self.gapFrame:CreateTexture(nil, "OVERLAY")
+            self.gaps[k] = t
+        end
+        t:ClearAllPoints()
+        if vertical then
+            local y = -R + 2 * R * k / N
+            local chord = 2 * math.sqrt(max(0, R * R - y * y))
+            t:SetTexture(BAR_TEX.flat)
+            t:SetTexCoord(0, 1, 0, 1)
+            t:SetSize(max(1, chord), th)
+            t:SetPoint("CENTER", self.gapFrame, "CENTER", 0, y)
+        else
+            local a = math.pi / 2 - (k - 1) / N * TWO_PI
+            t:SetTexture(Media("spoke"))
+            t:SetSize(R * 2, R * 2)
+            t:SetPoint("CENTER", self.gapFrame, "CENTER", 0, 0)
+            RotTexCoord(t, a - math.pi / 2)
+        end
+        t:Show()
+    end
 end
 
 function D:LayoutCircle(S, mode)
@@ -301,10 +424,24 @@ function D:LayoutCircle(S, mode)
     local outerR = S * st("outerRadius")
     local outerSym = S * 0.075 * st("outerSize")
     local extent = 0
-    if mods.ring then
-        local kind = (mode == "pie") and "pie" or st("outerStyle")
-        SetupRing(self.outer, kind, st("outerShape"), st("outerCount"), outerSym, outerR, rotate, st("outerClockwise"))
-        extent = outerR + (kind == "pie" and 0 or outerSym * 0.5)
+    local outerDir = st("outerDir")
+    self.pieLiquid = false
+    self.pieFrame:Hide()
+    for _, t in ipairs(self.gaps) do t:Hide() end
+    self.segN = nil
+    if mods.ring and mode == "pie" then
+        if outerDir == "up" or outerDir == "down" then
+            HideRing(self.outer)                   -- Flüssigkeit statt Tortenstücke
+            self.pieLiquid = true
+            self:SetupLiquid(outerR)
+        else
+            SetupRing(self.outer, "pie", "dot", 0, outerSym, outerR, true, outerDir)
+        end
+        self:SetupGaps(outerR, S, outerDir)
+        extent = outerR
+    elseif mods.ring then
+        SetupRing(self.outer, st("outerStyle"), st("outerShape"), st("outerCount"), outerSym, outerR, rotate, outerDir)
+        extent = outerR + outerSym * 0.5
     else
         HideRing(self.outer)
     end
@@ -314,7 +451,7 @@ function D:LayoutCircle(S, mode)
         if mode == "pie" then                       -- in der Torte: Ring außen herum
             innerR = outerR + innerSym * 0.5 + S * 0.04
         end
-        SetupRing(self.inner, st("innerStyle"), st("innerShape"), st("innerCount"), innerSym, innerR, rotate, st("innerClockwise"))
+        SetupRing(self.inner, st("innerStyle"), st("innerShape"), st("innerCount"), innerSym, innerR, rotate, st("innerDir"))
         extent = max(extent, innerR + innerSym * 0.5)
     else
         HideRing(self.inner)
@@ -365,6 +502,8 @@ function D:Layout()
     if db.mode == "bar" then
         HideRing(self.outer); HideRing(self.inner)
         self.bg:Hide(); self.rim:Hide(); self.fallback:Hide()
+        self.pieFrame:Hide(); self.pieLiquid = false; self.segN = nil
+        for _, t in ipairs(self.gaps) do t:Hide() end
         self:LayoutBar(S)
     else
         self:LayoutCircle(S, db.mode)
@@ -531,10 +670,14 @@ function D:Update(now)
             self.bar:SetStatusBarColor(r, g, b)
         end
         if showSpark then
-            local x = self.W * frac
-            if not st("outerClockwise") then x = self.W - x end
+            local pos = self.L1 * frac
+            if st("barDir") == "reverse" then pos = self.L1 - pos end
             self.spark:ClearAllPoints()
-            self.spark:SetPoint("CENTER", self.bar, "LEFT", x, 0)
+            if self.horiz then
+                self.spark:SetPoint("CENTER", self.bar, "LEFT", pos, 0)
+            else
+                self.spark:SetPoint("CENTER", self.bar, "BOTTOM", 0, pos)
+            end
             self.spark:SetAlpha(0.7 + 0.3 * sin(now * 6))
             self.spark:Show()
         else
@@ -542,11 +685,25 @@ function D:Update(now)
         end
         self.fallback:Hide()
     else
+        local dir = st("outerDir")
         if mods.ring then
-            FillRing(self.outer, frac, r, g, b, er, eg, eb, ea, mr, mg, mb)
+            -- Torte "in Stücken": nur ganze Stücke füllen
+            local shown = frac
+            if self.segN then shown = floor(frac * self.segN + 1e-6) / self.segN end
+            if self.pieLiquid then
+                self:UpdateLiquid(shown, r, g, b, er, eg, eb, ea)
+            else
+                FillRing(self.outer, shown, r, g, b, er, eg, eb, ea, mr, mg, mb)
+            end
+            if self.segN then
+                local gr, gg, gb = 0, 0, 0
+                if mods.background then gr, gg, gb = ns.GetColor("bg") end
+                for _, t in ipairs(self.gaps) do t:SetVertexColor(gr, gg, gb, 1) end
+            end
         end
-        if showSpark then
-            local a = math.pi / 2 + (st("outerClockwise") and -1 or 1) * frac * TWO_PI
+        -- Funke nur bei Füllung rundherum (bei "von unten/oben" gibt es keine Spitze)
+        if showSpark and (dir == "cw" or dir == "ccw") then
+            local a = math.pi / 2 + (dir == "cw" and -1 or 1) * frac * TWO_PI
             local rad = self.outer.radius or S * 0.42
             if self.outer.kind == "pie" then rad = rad * 0.92 end
             self.spark:ClearAllPoints()

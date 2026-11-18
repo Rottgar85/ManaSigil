@@ -6,7 +6,7 @@ ns.name  = addonName
 ns.MEDIA = "Interface\\AddOns\\" .. addonName .. "\\Media\\"
 ns.MANA  = (Enum and Enum.PowerType and Enum.PowerType.Mana) or 0
 
-local DB_VERSION = 2
+local DB_VERSION = 3
 
 -- Standardwerte (pro Charakter gespeichert)
 ns.defaults = {
@@ -47,8 +47,15 @@ ns.defaults = {
         innerSize   = 1.0,
         outerRadius = 0.42,
         innerRadius = 0.31,
-        outerClockwise = true,   -- Laufrichtung der Mana-Anzeige
-        innerClockwise = true,   -- Laufrichtung des 5-Sek.-/Tick-Rings
+        -- Laufrichtung im Kreis/in der Torte: cw | ccw (im/gegen den Uhrzeigersinn),
+        -- up (von unten nach oben) | down (von oben nach unten)
+        outerDir    = "cw",
+        innerDir    = "cw",
+        -- Laufrichtung der Balken: forward (links→rechts bzw. unten→oben) | reverse
+        barDir      = "forward",
+        innerBarDir = "forward",
+        pieStyle    = "smooth",  -- Torte: smooth = glatt, segments = in Stücken (Ticks)
+        pieSegments = 12,
         fsrFill     = "drain",   -- 5-Sek.-Regel: drain = leert sich, fill = füllt sich
         tickFill    = "fill",    -- Tick-Timer: fill = füllt sich bis zum Tick, drain = leert sich
         innerHideIdle = true,    -- innerer Ring bei vollem Mana ausblenden
@@ -60,8 +67,9 @@ ns.defaults = {
         rimSize     = 1.0,
         rimAlpha    = 0.55,
         rimFSR      = true,      -- Rand leuchtet während der 5-Sek.-Regel
-        barWidth    = 1.0,       -- Balken-Modus
-        barHeight   = 1.0,
+        barOrientation = "horizontal", -- Balken: horizontal | vertical
+        barWidth    = 1.6,       -- Balken: Breite und Höhe (relativ zur Grundgröße)
+        barHeight   = 0.2,
         barTexture  = "smooth",  -- smooth | flat | blizzard
         mp5Mode     = "current", -- off | current | both
         textScale   = 1.0,
@@ -92,6 +100,24 @@ local function Migrate(db)
             db.size = math.max(60, math.min(300, math.floor(db.size * db.scale + 0.5)))
         end
         db.scale = 1
+    end
+    if v < 3 then
+        local s = db.style
+        -- Richtung: aus true/false wird cw/ccw bzw. forward/reverse
+        if s.outerClockwise ~= nil then
+            s.outerDir = s.outerClockwise and "cw" or "ccw"
+            s.barDir = s.outerClockwise and "forward" or "reverse"
+        end
+        if s.innerClockwise ~= nil then
+            s.innerDir = s.innerClockwise and "cw" or "ccw"
+            s.innerBarDir = s.innerClockwise and "forward" or "reverse"
+        end
+        s.outerClockwise, s.innerClockwise = nil, nil
+        -- Balkenmaße sind jetzt direkte Faktoren der Grundgröße (vorher 1.6 bzw. 0.2 pro 1.0)
+        if v == 2 then
+            s.barWidth = (s.barWidth or 1) * 1.6
+            s.barHeight = (s.barHeight or 1) * 0.2
+        end
     end
     db.dbVersion = DB_VERSION
 end
@@ -212,8 +238,10 @@ events:SetScript("OnEvent", Dispatch)
 
 function handlers.ADDON_LOADED(name)
     if name ~= addonName then return end
+    local fresh = ManaSigilDB == nil
     ManaSigilDB = CopyDefaults(ns.defaults, ManaSigilDB or {})
     ns.db = ManaSigilDB
+    if fresh then ns.db.dbVersion = DB_VERSION end   -- neue Charaktere brauchen keine Umstellung
     Migrate(ns.db)
     events:UnregisterEvent("ADDON_LOADED")
 end

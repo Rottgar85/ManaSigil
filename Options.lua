@@ -24,7 +24,7 @@ local function TimerOn() return db().modules.fsr or db().modules.ticks end
 
 local function Changed()
     ns.Display:Refresh()
-    O:RefreshActive()
+    O:RefreshWidgets()   -- Beschriftungen (z. B. Laufrichtung) hängen vom Modus ab
 end
 
 -- Tooltip ---------------------------------------------------------------------------
@@ -283,10 +283,25 @@ local function ShapeLabel(which)
     end
 end
 
--- Laufrichtung: Beschriftung passend zum Modus
+-- Laufrichtung: im Kreis/in der Torte cw/ccw/up/down, beim Balken forward/reverse
+local function IsVertBar() return IsBar() and style().barOrientation == "vertical" end
+local function DirValues()
+    if IsBar() then return { "forward", "reverse" } end
+    return { "cw", "ccw", "up", "down" }
+end
 local function DirLabel(v)
-    if IsBar() then return v and L.DIR_RIGHT or L.DIR_LEFT end
-    return v and L.DIR_CW or L.DIR_CCW
+    if v == "forward" then return IsVertBar() and L.DIRS.up or L.DIR_RIGHT end
+    if v == "reverse" then return IsVertBar() and L.DIRS.down or L.DIR_LEFT end
+    return L.DIRS[v] or v
+end
+-- Liest/schreibt je nach Modus das passende Feld (Kreis/Torte oder Balken)
+local function DirGet(circleKey, barKey)
+    return function() return IsBar() and style()[barKey] or style()[circleKey] end
+end
+local function DirSet(circleKey, barKey)
+    return function(v)
+        if IsBar() then style()[barKey] = v else style()[circleKey] = v end
+    end
 end
 
 local function DecorPartPresent(part)
@@ -379,12 +394,28 @@ function O:Build()
     y = y - 28
     Slider(c, L.O_RADIUS, 20, y, 0.15, 0.7, 0.01, Pct, SG("outerRadius"), SS("outerRadius"), L.TIP_RADIUS, IsCircle)
     y = y - 30
-    Cycler(c, L.O_DIRECTION, 20, y, List(true, false), DirLabel, SG("outerClockwise"), SS("outerClockwise"),
+    Cycler(c, L.O_DIRECTION, 20, y, DirValues, DirLabel, DirGet("outerDir", "barDir"), DirSet("outerDir", "barDir"),
         L.TIP_DIRECTION)
     y = y - 30
-    Slider(c, L.O_BAR_WIDTH, 20, y, 0.4, 3.0, 0.05, Times, SG("barWidth"), SS("barWidth"), L.TIP_BAR, IsBar)
+    Cycler(c, L.O_PIE_STYLE, 20, y, List("smooth", "segments"), Lookup(L.PIE_STYLES),
+        SG("pieStyle"), SS("pieStyle"), L.TIP_PIE_STYLE, function() return Mode() == "pie" end)
+    y = y - 30
+    Slider(c, L.O_PIE_SEGMENTS, 20, y, 2, 40, 1, "%d", SG("pieSegments"), SS("pieSegments"), L.TIP_PIE_SEGMENTS,
+        function() return Mode() == "pie" and style().pieStyle == "segments" end)
+    y = y - 30
+    Cycler(c, L.O_ORIENT, 20, y, List("horizontal", "vertical"), Lookup(L.ORIENTS),
+        SG("barOrientation"),
+        function(v)
+            -- beim Umschalten Breite und Höhe tauschen, damit der Balken lang bleibt
+            if v ~= style().barOrientation then
+                style().barWidth, style().barHeight = style().barHeight, style().barWidth
+            end
+            style().barOrientation = v
+        end, L.TIP_ORIENT, IsBar)
+    y = y - 30
+    Slider(c, L.O_BAR_WIDTH, 20, y, 0.05, 4.0, 0.05, Times, SG("barWidth"), SS("barWidth"), L.TIP_BAR, IsBar)
     y = y - 28
-    Slider(c, L.O_BAR_HEIGHT, 20, y, 0.3, 3.0, 0.05, Times, SG("barHeight"), SS("barHeight"), L.TIP_BAR, IsBar)
+    Slider(c, L.O_BAR_HEIGHT, 20, y, 0.05, 4.0, 0.05, Times, SG("barHeight"), SS("barHeight"), L.TIP_BAR, IsBar)
     y = y - 30
     Cycler(c, L.O_BAR_TEXTURE, 20, y, List("smooth", "flat", "blizzard"), Lookup(L.BAR_TEXTURES),
         SG("barTexture"), SS("barTexture"), L.TIP_BAR, IsBar)
@@ -398,8 +429,8 @@ function O:Build()
     Cycler(c, L.O_TICK_FILL, 20, y, List("fill", "drain"), Lookup(L.FILL_MODES), SG("tickFill"), SS("tickFill"),
         L.TIP_TICK_FILL, function() return db().modules.ticks end)
     y = y - 30
-    Cycler(c, L.O_DIRECTION, 20, y, List(true, false), DirLabel, SG("innerClockwise"), SS("innerClockwise"),
-        L.TIP_DIRECTION, TimerOn)
+    Cycler(c, L.O_DIRECTION, 20, y, DirValues, DirLabel, DirGet("innerDir", "innerBarDir"),
+        DirSet("innerDir", "innerBarDir"), L.TIP_DIRECTION, TimerOn)
     y = y - 30
     Cycler(c, L.O_STYLE, 20, y, List("symbols", "solid"), Lookup(L.RING_STYLES),
         SG("innerStyle"), SS("innerStyle"), L.TIP_STYLE, function() return IsCircle() and TimerOn() end)

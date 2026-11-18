@@ -489,8 +489,22 @@ def make_wedge():
         return (1.0, a)
     cv.paint(f); save('wedge', cv)
 
+# ---------------------------------------------------------------- Scheibe für die Flüssigkeits-Füllung der Torte
+def make_filldisc():
+    cv = Canvas(256, 2)
+    cv.paint(lambda x, y: (1.0, aa(0.985 - math.hypot(x, y), 0.012)))
+    save('filldisc', cv)
+
+# ---------------------------------------------------------------- Speiche: Trennlinie zwischen Tortenstücken
+def make_spoke():
+    cv = Canvas(256, 2)
+    def f(x, y):
+        if y < 0 or y > 0.99: return None
+        return (1.0, aa(0.014 - abs(x), 0.008))
+    cv.paint(f, (-0.05, 0, 0.05, 1)); save('spoke', cv)
+
 if __name__ == '__main__':
     # Aufruf: python tools/gen_media.py <Media-Ordner> <Vorschau-Ordner> [name ...]
-    which = sys.argv[3:] or ['glow', 'disc', 'rim', 'wing', 'horn', 'sigil', 'runes', 'rays', 'leaf', 'bolt', 'feather', 'symbols', 'wedge']
+    which = sys.argv[3:] or ['glow', 'disc', 'rim', 'wing', 'horn', 'sigil', 'runes', 'rays', 'leaf', 'bolt', 'feather', 'symbols', 'wedge', 'filldisc', 'spoke']
     for w in which:
         globals()['make_' + w]()

@@ -4,7 +4,9 @@
 
 - **Display modes:** Ring, Pie or Bar (`/msig mode ring|pie|bar`). Bar mode also works when the game hides mana values.
 - **MP5 display:** shows your mana regeneration per 5 seconds – the value that applies right now, or both (normal / during the five-second rule)
-- **Direction** of the mana display and of the timer (clockwise/counter-clockwise, left/right for bars)
+- **Direction** of the mana display and of the timer: clockwise, counter-clockwise, bottom to top or top to bottom (ring and pie fill like a liquid)
+- **Pie fill:** smooth or in slices (ticks), number of slices adjustable
+- **Bars:** free width and height, horizontal or vertical, fill direction in both ways
 - **Timer behaviour:** five-second rule and tick timer can each fill up or empty out
 - Timer ring hides when mana is full (optional), border glows during the five-second rule (optional)
 - Every decoration part (wings, halo, glow, horns ...) can be hidden individually

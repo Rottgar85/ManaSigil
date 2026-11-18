@@ -122,8 +122,12 @@ local D = ns.Display
 for _, mode in ipairs({ "ring", "pie", "bar" }) do
     SlashCmdList.MANASIGIL("mode " .. mode)
     assert(ns.db.mode == mode and D.mode == mode, "Modus " .. mode)
-    for _, cw in ipairs({ true, false }) do
-        st.outerClockwise, st.innerClockwise = cw, not cw
+    for di, dir in ipairs({ "cw", "ccw", "up", "down" }) do
+        st.outerDir, st.innerDir = dir, ({ "down", "up", "ccw", "cw" })[di]
+        st.barDir = (di % 2 == 1) and "forward" or "reverse"
+        st.innerBarDir = (di % 2 == 0) and "forward" or "reverse"
+        st.barOrientation = (di <= 2) and "horizontal" or "vertical"
+        st.pieStyle = (di % 2 == 1) and "smooth" or "segments"
         for _, ff in ipairs({ "drain", "fill" }) do
             st.fsrFill, st.tickFill = ff, ff
             for _, mp in ipairs({ "off", "current", "both" }) do
@@ -136,8 +140,34 @@ for _, mode in ipairs({ "ring", "pie", "bar" }) do
         end
     end
 end
-assert(ns.Display.outer.n == 0 and ns.Display.H1 and ns.Display.H1 > 0, "Balken-Modus aktiv")
-SlashCmdList.MANASIGIL("mode pie"); assert(D.outer.n == 90 and D.outer.kind == "pie", "Torte mit 90 Stücken")
+assert(ns.Display.outer.n == 0 and ns.Display.T1 and ns.Display.T1 > 0, "Balken-Modus aktiv")
+-- Senkrechter Balken: Länge entspricht der Höhe
+st.barOrientation, st.barWidth, st.barHeight = "vertical", 0.2, 1.6
+SlashCmdList.MANASIGIL("mode bar"); upd(nil, 1)
+assert(D.horiz == false and math.abs(D.L1 - 1.6 * ns.db.size) < 1e-6, "senkrechter Balken")
+-- Torte als Flüssigkeit, in Stücken: Füllung in ganzen Stücken
+st.outerDir, st.pieStyle, st.pieSegments = "up", "segments", 10
+SlashCmdList.MANASIGIL("mode pie"); upd(nil, 1)
+assert(D.pieLiquid and D.segN == 10 and D.outer.n == 0, "Flüssigkeits-Torte in 10 Stücken")
+-- Kreis von unten nach oben: unterstes Symbol wird zuerst gefüllt
+st.outerDir, st.outerStyle = "up", "symbols"
+SlashCmdList.MANASIGIL("mode ring")
+local lowest, lowOv = nil, 2
+for i = 1, D.outer.n do if D.outer.ov[i] < lowOv then lowest, lowOv = i, D.outer.ov[i] end end
+assert(lowOv < 0.1 and math.sin(math.pi / 2 - (lowest - 0.5) / D.outer.n * 2 * math.pi) < -0.9, "unten beginnt die Füllung")
+-- Umstellung der Einstellungen aus 1.2.0 (Version 2)
+do
+    local old = { dbVersion = 2, style = { outerClockwise = false, innerClockwise = true, barWidth = 1.0, barHeight = 2.0 } }
+    ManaSigilDB = old
+    local loaded = ns.db
+    ev(nil, "ADDON_LOADED", "ManaSigil")
+    local s = ManaSigilDB.style
+    assert(s.outerDir == "ccw" and s.barDir == "reverse" and s.innerDir == "cw", "Richtung übernommen")
+    assert(math.abs(s.barWidth - 1.6) < 1e-9 and math.abs(s.barHeight - 0.4) < 1e-9, "Balkenmaße umgerechnet")
+    assert(s.outerClockwise == nil and ManaSigilDB.dbVersion == 3, "alte Felder entfernt")
+    ManaSigilDB = loaded; ns.db = loaded
+end
+st.outerDir = "cw"; SlashCmdList.MANASIGIL("mode pie"); assert(D.outer.n == 90 and D.outer.kind == "pie", "Torte mit 90 Stücken")
 -- MP5: 12 bzw. 3 Mana/Sek. -> 60 / 15 pro 5 Sekunden
 local b5, c5 = ns.Tracker:GetMP5(); assert(b5 == 60 and c5 == 15, "MP5-Berechnung")
 st.mp5Mode = "both"; ns.Tracker:StartFSR()

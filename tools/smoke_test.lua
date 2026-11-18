@@ -122,8 +122,8 @@ local D = ns.Display
 for _, mode in ipairs({ "ring", "pie", "bar" }) do
     SlashCmdList.MANASIGIL("mode " .. mode)
     assert(ns.db.mode == mode and D.mode == mode, "Modus " .. mode)
-    for di, dir in ipairs({ "cw", "ccw", "up", "down" }) do
-        st.outerDir, st.innerDir = dir, ({ "down", "up", "ccw", "cw" })[di]
+    for di, dir in ipairs({ "cw", "ccw", "up", "down", "ltr", "rtl" }) do
+        st.outerDir, st.innerDir = dir, ({ "down", "up", "ccw", "rtl", "ltr", "cw" })[di]
         st.barDir = (di % 2 == 1) and "forward" or "reverse"
         st.innerBarDir = (di % 2 == 0) and "forward" or "reverse"
         st.barOrientation = (di <= 2) and "horizontal" or "vertical"
@@ -149,6 +149,22 @@ assert(D.horiz == false and math.abs(D.L1 - 1.6 * ns.db.size) < 1e-6, "senkrecht
 st.outerDir, st.pieStyle, st.pieSegments = "up", "segments", 10
 SlashCmdList.MANASIGIL("mode pie"); upd(nil, 1)
 assert(D.pieLiquid and D.segN == 10 and D.outer.n == 0, "Flüssigkeits-Torte in 10 Stücken")
+-- Torte von links nach rechts in Tausendsteln: Flüssigkeit, keine Trennlinien
+local gapsBefore = #D.gaps
+st.outerDir, st.pieSegments = "ltr", 1000
+SlashCmdList.MANASIGIL("mode pie"); upd(nil, 1)
+assert(D.pieLiquid and D.segN == 1000 and #D.gaps == gapsBefore, "Tausendstel ohne Trennlinien")
+st.outerDir, st.pieSegments = "rtl", 4
+SlashCmdList.MANASIGIL("mode pie"); upd(nil, 1)
+assert(D.pieLiquid and D.segN == 4, "Torte von rechts in Vierteln")
+-- Kreis von links nach rechts: linkestes Symbol zuerst
+st.outerDir, st.outerStyle = "ltr", "symbols"
+SlashCmdList.MANASIGIL("mode ring")
+do
+    local li, lo = nil, 2
+    for i = 1, D.outer.n do if D.outer.ov[i] < lo then li, lo = i, D.outer.ov[i] end end
+    assert(lo < 0.1 and math.cos(math.pi / 2 - (li - 0.5) / D.outer.n * 2 * math.pi) < -0.9, "links beginnt die Füllung")
+end
 -- Kreis von unten nach oben: unterstes Symbol wird zuerst gefüllt
 st.outerDir, st.outerStyle = "up", "symbols"
 SlashCmdList.MANASIGIL("mode ring")

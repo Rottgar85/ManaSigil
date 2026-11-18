@@ -6,7 +6,9 @@ ns.Display = D
 
 local UPDATE_RATE = 1 / 40          -- max. 40 Aktualisierungen pro Sekunde
 local MAX_PIPS = 240                -- Obergrenze pro Ring
-local PIE_N = 90                    -- Tortenstücke (passend zur Grafik "wedge")
+local PIE_N = 90
+local MAX_SEGMENTS = 1000
+local MAX_GAP_LINES = 72                    -- Tortenstücke (passend zur Grafik "wedge")
 local TWO_PI = math.pi * 2
 local sin, cos, floor, max, min = math.sin, math.cos, math.floor, math.max, math.min
 
@@ -77,8 +79,8 @@ local function SetupRing(ring, kind, shape, count, size, radius, rotate, dir)
     ring.cache.key = nil
     -- Reihenfolge der Füllung: ov[i] = Position (0..1), w = Breite eines Teils
     ring.ov = ring.ov or {}
-    local vertical = (dir == "up" or dir == "down")
-    ring.w = vertical and max(1 / n * 2, size / max(1, radius * 2)) or 1 / n
+    local linear = ns.linearDirs[dir]
+    ring.w = linear and max(1 / n * 2, size / max(1, radius * 2)) or 1 / n
     for i = 1, n do
         local t = ring.pips[i]
         if not t then
@@ -90,6 +92,10 @@ local function SetupRing(ring, kind, shape, count, size, radius, rotate, dir)
             ring.ov[i] = (1 + sin(a)) / 2          -- unten zuerst
         elseif dir == "down" then
             ring.ov[i] = (1 - sin(a)) / 2          -- oben zuerst
+        elseif dir == "ltr" then
+            ring.ov[i] = (1 + cos(a)) / 2          -- links zuerst
+        elseif dir == "rtl" then
+            ring.ov[i] = (1 - cos(a)) / 2          -- rechts zuerst
         else
             ring.ov[i] = (i - 0.5) / n
         end
@@ -368,13 +374,25 @@ function D:UpdateLiquid(f, r, g, b, er, eg, eb, ea)
     if f <= 0 then t:Hide(); return end
     if f > 1 then f = 1 end
     t:ClearAllPoints()
-    t:SetSize(R * 2, R * 2 * f)
-    if st("outerDir") == "down" then
-        t:SetPoint("TOP", self.pieFrame, "CENTER", 0, R)
-        t:SetTexCoord(0, 1, 0, f)
+    local dir = st("outerDir")
+    if dir == "ltr" or dir == "rtl" then
+        t:SetSize(R * 2 * f, R * 2)
+        if dir == "ltr" then
+            t:SetPoint("LEFT", self.pieFrame, "CENTER", -R, 0)
+            t:SetTexCoord(0, f, 0, 1)
+        else
+            t:SetPoint("RIGHT", self.pieFrame, "CENTER", R, 0)
+            t:SetTexCoord(1 - f, 1, 0, 1)
+        end
     else
-        t:SetPoint("BOTTOM", self.pieFrame, "CENTER", 0, -R)
-        t:SetTexCoord(0, 1, 1 - f, 1)
+        t:SetSize(R * 2, R * 2 * f)
+        if dir == "down" then
+            t:SetPoint("TOP", self.pieFrame, "CENTER", 0, R)
+            t:SetTexCoord(0, 1, 0, f)
+        else
+            t:SetPoint("BOTTOM", self.pieFrame, "CENTER", 0, -R)
+            t:SetTexCoord(0, 1, 1 - f, 1)
+        end
     end
     t:SetVertexColor(r, g, b, 1)
     t:Show()
@@ -385,10 +403,13 @@ function D:SetupGaps(R, S, dir)
     for _, t in ipairs(self.gaps) do t:Hide() end
     self.segN = nil
     if st("pieStyle") ~= "segments" then return end
-    local N = max(2, floor(st("pieSegments") + 0.5))
+    local N = min(MAX_SEGMENTS, max(2, floor(st("pieSegments") + 0.5)))
     self.segN = N
-    local vertical = (dir == "up" or dir == "down")
-    local count = vertical and (N - 1) or N
+    local linear = ns.linearDirs[dir]
+    local count = linear and (N - 1) or N
+    -- bei sehr vielen Stücken (z. B. 1000) würden die Linien zu einer Fläche verschmelzen:
+    -- dann nur in Schritten füllen, ohne Trennlinien
+    if N > MAX_GAP_LINES then count = 0 end
     local th = max(1, S * 0.012)
     for k = 1, count do
         local t = self.gaps[k]
@@ -397,13 +418,18 @@ function D:SetupGaps(R, S, dir)
             self.gaps[k] = t
         end
         t:ClearAllPoints()
-        if vertical then
-            local y = -R + 2 * R * k / N
-            local chord = 2 * math.sqrt(max(0, R * R - y * y))
+        if linear then
+            local p = -R + 2 * R * k / N
+            local chord = 2 * math.sqrt(max(0, R * R - p * p))
             t:SetTexture(BAR_TEX.flat)
             t:SetTexCoord(0, 1, 0, 1)
-            t:SetSize(max(1, chord), th)
-            t:SetPoint("CENTER", self.gapFrame, "CENTER", 0, y)
+            if dir == "ltr" or dir == "rtl" then
+                t:SetSize(th, max(1, chord))
+                t:SetPoint("CENTER", self.gapFrame, "CENTER", p, 0)
+            else
+                t:SetSize(max(1, chord), th)
+                t:SetPoint("CENTER", self.gapFrame, "CENTER", 0, p)
+            end
         else
             local a = math.pi / 2 - (k - 1) / N * TWO_PI
             t:SetTexture(Media("spoke"))
@@ -430,7 +456,7 @@ function D:LayoutCircle(S, mode)
     for _, t in ipairs(self.gaps) do t:Hide() end
     self.segN = nil
     if mods.ring and mode == "pie" then
-        if outerDir == "up" or outerDir == "down" then
+        if ns.linearDirs[outerDir] then
             HideRing(self.outer)                   -- Flüssigkeit statt Tortenstücke
             self.pieLiquid = true
             self:SetupLiquid(outerR)

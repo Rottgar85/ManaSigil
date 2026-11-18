@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.1 – 2026-11-18
+
+- **New directions** for ring and pie: left to right and right to left (in addition to clockwise, counter-clockwise, bottom to top, top to bottom)
+- **Pie slices** from halves and quarters up to thousandths (2, 3, 4 … 100, 250, 500, 1000); with many slices the divider lines are left out
+- Pie is now completely filled up to the center (it used to fade out towards the middle)
+
 ## 1.2.0 – 2026-11-18
 
 - **Display modes:** Ring, Pie or Bar (`/msig mode ring|pie|bar`). Bar mode also works when the game hides mana values.

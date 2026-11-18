@@ -283,11 +283,18 @@ local function ShapeLabel(which)
     end
 end
 
+-- Stückzahl der Torte: von Hälften bis Tausendstel
+local SEGMENT_STEPS = { 2, 3, 4, 5, 6, 8, 10, 12, 16, 20, 24, 30, 36, 48, 60, 100, 250, 500, 1000 }
+local function SegmentLabel(v)
+    local name = L.SEGMENT_NAMES and L.SEGMENT_NAMES[v]
+    return name and string.format("%d (%s)", v, name) or tostring(v)
+end
+
 -- Laufrichtung: im Kreis/in der Torte cw/ccw/up/down, beim Balken forward/reverse
 local function IsVertBar() return IsBar() and style().barOrientation == "vertical" end
 local function DirValues()
     if IsBar() then return { "forward", "reverse" } end
-    return { "cw", "ccw", "up", "down" }
+    return { "cw", "ccw", "ltr", "rtl", "up", "down" }
 end
 local function DirLabel(v)
     if v == "forward" then return IsVertBar() and L.DIRS.up or L.DIR_RIGHT end
@@ -400,7 +407,8 @@ function O:Build()
     Cycler(c, L.O_PIE_STYLE, 20, y, List("smooth", "segments"), Lookup(L.PIE_STYLES),
         SG("pieStyle"), SS("pieStyle"), L.TIP_PIE_STYLE, function() return Mode() == "pie" end)
     y = y - 30
-    Slider(c, L.O_PIE_SEGMENTS, 20, y, 2, 40, 1, "%d", SG("pieSegments"), SS("pieSegments"), L.TIP_PIE_SEGMENTS,
+    Cycler(c, L.O_PIE_SEGMENTS, 20, y, function() return SEGMENT_STEPS end, SegmentLabel,
+        SG("pieSegments"), SS("pieSegments"), L.TIP_PIE_SEGMENTS,
         function() return Mode() == "pie" and style().pieStyle == "segments" end)
     y = y - 30
     Cycler(c, L.O_ORIENT, 20, y, List("horizontal", "vertical"), Lookup(L.ORIENTS),

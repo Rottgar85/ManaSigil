@@ -126,6 +126,7 @@ end
 ns.shapeOrder = { "dot", "solid", "circle", "diamond", "star", "square", "heart", "flame", "cross", "skull", "leaf" }
 ns.shapeNames = L.SHAPES
 -- Runde Symbole werden nie gedreht
+ns.linearDirs = { up = true, down = true, ltr = true, rtl = true }   -- Füllung wie eine Flüssigkeit
 ns.roundShapes = { dot = true, solid = true, circle = true }
 
 -- Einstellbare Farben (Reihenfolge = Optionsmenü)

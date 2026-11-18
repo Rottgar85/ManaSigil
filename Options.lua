@@ -224,7 +224,9 @@ local function OpenColorPicker(r, g, b, onChange)
 end
 
 local function Swatch(parent, text, key, x, y)
-    local row = Row(parent, x, y, text, L.TT_COLOR_PICK .. "\n" .. L.TT_COLOR_RESET, nil, 185)
+    local tip = L.TT_COLOR_PICK .. "\n" .. L.TT_COLOR_RESET
+    if L.TT_COLOR_EXTRA and L.TT_COLOR_EXTRA[key] then tip = tip .. "\n\n" .. L.TT_COLOR_EXTRA[key] end
+    local row = Row(parent, x, y, text, tip, nil, 185)
     local b = CreateFrame("Button", nil, row, "BackdropTemplate")
     b:SetSize(22, 22)
     b:SetPoint("LEFT", row, "LEFT", 0, 0)
@@ -253,6 +255,13 @@ local function Swatch(parent, text, key, x, y)
         local r, g, bl = ns.GetColor(key)
         OpenColorPicker(r, g, bl, function(nr, ng, nb)
             ns.db.colors[key] = { nr, ng, nb }
+            -- Wer die Textfarbe wählt, will sie auch sehen: Verlauf dafür abschalten
+            -- (und umgekehrt bei den Verlaufsfarben wieder einschalten)
+            if key == "text" then
+                ns.db.style.textColorMode = "fixed"
+            elseif key == "high" or key == "mid" then
+                ns.db.style.textColorMode = "gradient"
+            end
             holder.Refresh(); Changed()
         end)
     end)

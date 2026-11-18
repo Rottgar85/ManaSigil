@@ -3,6 +3,7 @@
 ## 1.3.2 – 2026-11-18
 
 - Tick detection with hidden mana values now only uses the server mana updates (`UNIT_POWER_UPDATE`); the almost continuous `UNIT_POWER_FREQUENT` events no longer count as ticks
+- Colors: choosing the **text color** now switches the number color to "Fixed" (before, the gradient covered it, so the change was not visible); choosing the full/half gradient colors switches back to the gradient. Color tooltips explain which setting they belong to
 - `/msig debug` shows how many mana events of each type arrived and the time between the server updates
 
 ## 1.3.1 – 2026-11-18

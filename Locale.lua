@@ -30,6 +30,12 @@ local enUS = {
     TT_DRAG_BUTTON = "Drag: move button",
     TT_COLOR_PICK = "Left-click: choose color",
     TT_COLOR_RESET = "Right-click: use theme color",
+    TT_COLOR_EXTRA = {
+        text = "Used when the number color is set to \"Fixed\". Choosing a text color switches the number color to \"Fixed\".",
+        high = "Gradient color at full mana. Choosing it switches the number color to the gradient.",
+        mid = "Gradient color in the middle (see \"Yellow at\"). Choosing it switches the number color to the gradient.",
+        low = "Gradient color at low mana and color of the low mana warning.",
+    },
 
     -- Optionen
     OPT_SUBTITLE = "Mana ring, five-second rule and tick timer – fully customizable. The ring stays visible while this window is open.",
@@ -215,6 +221,12 @@ local deDE = {
     TT_DRAG_BUTTON = "Ziehen: Button verschieben",
     TT_COLOR_PICK = "Linksklick: Farbe wählen",
     TT_COLOR_RESET = "Rechtsklick: Themenfarbe verwenden",
+    TT_COLOR_EXTRA = {
+        text = "Gilt, wenn die Farbe der Zahlen auf \"Fest\" steht. Wählst du eine Textfarbe, wird die Farbe der Zahlen auf \"Fest\" umgestellt.",
+        high = "Verlaufsfarbe bei vollem Mana. Beim Auswählen wird die Farbe der Zahlen auf den Verlauf umgestellt.",
+        mid = "Verlaufsfarbe in der Mitte (siehe \"Gelb bei\"). Beim Auswählen wird die Farbe der Zahlen auf den Verlauf umgestellt.",
+        low = "Verlaufsfarbe bei wenig Mana und Farbe der Warnung.",
+    },
 
     OPT_SUBTITLE = "Mana-Ring, 5-Sekunden-Regel und Tick-Timer – alles frei gestaltbar. Der Ring bleibt sichtbar, solange dieses Fenster offen ist.",
     H_THEME = "Thema",

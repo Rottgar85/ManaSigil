@@ -41,16 +41,17 @@ end
 
 -- Texte: Größe eines Textes mit geheimem Inhalt ist selbst geheim. Dann misst ein
 -- unsichtbarer Platzhalter an derselben Stelle (Größe nach der Schriftgröße geschätzt).
+-- Texte werden immer über ihren Platzhalter gemessen (feste Größe nach Schriftgröße):
+-- so bleiben Griff und Namensschild ruhig stehen, auch wenn sich die Zahl ändert.
 local function TextRect(p)
-    local fs = p.regions()[1]
-    local l, b, r, t = Rect(fs)
+    local l, b, r, t = Rect(p.probe)
     if l then return l, b, r, t end
-    return Rect(p.probe)
+    return Rect(p.regions()[1])
 end
 
-local function TextPart(key, field, extra)
+local function TextPart(key, field, extra, widthFactor)
     return {
-        key = key, text = true,
+        key = key, text = true, widthFactor = widthFactor,
         regions = function() return { D()[field] } end,
         shown = function()
             return Mods().text and D()[field]:IsShown() and (not extra or extra())
@@ -103,10 +104,10 @@ SB.parts = {
           if IsBar() then return Rect(d.bar) end
           return CircleRect(d.outer.frame, d.outerExtent or 20)
       end },
-    TextPart("bigText", "bigText"),
-    TextPart("valText", "valText"),
-    TextPart("infoText", "infoText"),
-    TextPart("mp5Text", "mp5Text", function() return ns.GetStyle("mp5Mode") ~= "off" end),
+    TextPart("bigText", "bigText", nil, 4.5),
+    TextPart("valText", "valText", nil, 3.5),
+    TextPart("infoText", "infoText", nil, 2.5),
+    TextPart("mp5Text", "mp5Text", function() return ns.GetStyle("mp5Mode") ~= "off" end, 6.5),
     { key = "timer",
       regions = function()
           if ns.db.mode == "bar" then return { D().bar2 } end
@@ -219,7 +220,7 @@ function SB:Apply()
                 end
                 local _, size = p.regs[1]:GetFont()
                 size = (ns.Readable(size) and size) or 14
-                p.probe:SetSize(size * 3.2, size * 1.25)
+                p.probe:SetSize(size * (p.widthFactor or 3.2) * 0.55, size * 1.25)
                 if p.base[1] then SetPoints(p.probe, p.base[1], 0, 0, p.key) end
             end
         end
@@ -422,7 +423,6 @@ function SB:OnUpdate()
     self:Dim()
     -- Griffe folgen ihren Teilen
     local sl, sb = Rect(self.frame)
-    local tabs = {}
     for _, h in ipairs(self.handles) do
         local p = h.part
         local l, b, r, t
@@ -440,25 +440,12 @@ function SB:OnUpdate()
             local a = (self.drag and not dragging) and 0.25 or 1
             h:SetAlpha(a)
             h:Show()
-            -- Schild oben links am Teil; überdeckt es ein anderes, rückt es nach rechts bzw. unten
+            -- Schild immer mittig über dem Teil: hängt nur am Mittelpunkt und an der
+            -- Oberkante, springt also nicht, wenn sich die Zahl ändert oder andere Teile wandern
             local lw = h.label:GetStringWidth()
-            local tw, th = (ns.Readable(lw) and lw or 60) + 10, 14
-            local x0 = cx - w / 2 - sl
-            local tx, ty = x0, cy + hh / 2 - sb
-            local function hits()
-                for _, o in ipairs(tabs) do
-                    if tx < o[1] + o[3] + 2 and tx + tw + 2 > o[1] and ty < o[2] + o[4] + 2 and ty + th + 2 > o[2] then
-                        return true
-                    end
-                end
-            end
-            local tries = 0
-            while hits() and tries < 12 do
-                tries = tries + 1
-                tx = tx + 40
-                if tries % 4 == 0 then tx, ty = x0, ty - th - 2 end
-            end
-            tabs[#tabs + 1] = { tx, ty, tw, th }
+            if ns.Readable(lw) then h.tabW = h.tabW or (lw + 12) end
+            local tw, th = h.tabW or 70, 14
+            local tx, ty = math.floor(cx - tw / 2 - sl + 0.5), math.floor(cy + hh / 2 - sb + 2 + 0.5)
             h.tab:ClearAllPoints()
             h.tab:SetPoint("BOTTOMLEFT", self.frame, "BOTTOMLEFT", tx, ty)
             h.tab:SetSize(tw, th)

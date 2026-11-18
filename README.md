@@ -18,6 +18,8 @@
 
 ## Features
 
+- **Three display modes** – Ring, Pie or Bar
+- **MP5 display** – your mana regeneration per 5 seconds, normal and during the five-second rule
 - **Mana ring (outer)** – current mana as a glowing ring with a spark at the fill edge
 - **Five-second rule (inner ring)** – drains over 5 seconds after you spend mana, with a countdown
 - **Mana tick timer** – shows the 2-second regen cycle and flashes `+amount` on every tick
@@ -52,6 +54,8 @@
 |---|---|
 | `/msig`, `/manasigil` | Open options |
 | `/msig toggle` · `on` · `off` | Display on/off |
+| `/msig mode ring` · `pie` · `bar` | Display mode |
+| `/msig debug` | Show mana/MP5 values for troubleshooting |
 | `/msig minimap` | Show/hide minimap button |
 | `/msig lock` · `unlock` | Lock / unlock position |
 | `/msig theme <name>` | `angel`, `demon`, `arcane`, `nature`, `holy`, `storm`, `wild`, `shadow`, `classic`, `auto` |

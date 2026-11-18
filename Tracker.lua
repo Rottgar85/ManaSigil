@@ -95,6 +95,23 @@ function T:FSRRemaining(now)
     return math.max(0, self.fsrEnd - (now or GetTime()))
 end
 
+-- Mana-Regeneration pro 5 Sekunden: außerhalb und innerhalb der 5-Sek.-Regel.
+-- GetManaRegen liefert Mana pro Sekunde (normal, beim Zaubern). Ohne lesbare Werte
+-- wird die normale Regeneration aus dem letzten Tick geschätzt (Tick alle 2 s).
+function T:GetMP5()
+    local base, casting
+    if GetManaRegen then
+        local ok, b, c = pcall(GetManaRegen)
+        if ok and ns.Readable(b) and ns.Readable(c) then
+            base, casting = b * 5, c * 5
+        end
+    end
+    if not base and self.tickAmount then
+        base = self.tickAmount * (5 / TICK_INTERVAL)
+    end
+    return base, casting
+end
+
 -- Fortschritt bis zum nächsten Tick (0..1) oder nil, wenn noch kein Tick bekannt ist
 function T:TickProgress(now)
     if not self.lastTick then return nil end

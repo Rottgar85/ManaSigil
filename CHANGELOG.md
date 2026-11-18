@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.2.0 – 2026-11-18
+
+- **Display modes:** Ring, Pie or Bar (`/msig mode ring|pie|bar`). Bar mode also works when the game hides mana values.
+- **MP5 display:** shows your mana regeneration per 5 seconds – the value that applies right now, or both (normal / during the five-second rule)
+- **Direction** of the mana display and of the timer (clockwise/counter-clockwise, left/right for bars)
+- **Timer behaviour:** five-second rule and tick timer can each fill up or empty out
+- Timer ring hides when mana is full (optional), border glows during the five-second rule (optional)
+- Every decoration part (wings, halo, glow, horns ...) can be hidden individually
+- The backup bar for hidden mana values can be switched off
+- Options: tooltips for every setting, settings without effect in the current mode are greyed out, removed the redundant "Scale" slider (merged into base size)
+- Fixed symbols being cut into half circles when rotated (own rotation math, round symbols are never rotated)
+- Background and border now adapt to the outermost ring
+- New `/msig debug` command for troubleshooting
+
 ## 1.1.2 – 2026-11-17
 
 - Fixed the automatic CurseForge upload

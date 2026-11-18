@@ -1,15 +1,61 @@
 -- ManaSigil – Optionsmenü (Spieloptionen > AddOns > ManaSigil)
+-- Jede Zeile hat einen Tooltip; Einstellungen ohne Wirkung im aktuellen Modus werden ausgegraut.
 local _, ns = ...
 local L = ns.L
 
 local O = {}
 ns.Options = O
 O.widgets = {}
+O.rows = {}
 
-local LABEL_W = 170   -- Breite der Beschriftungsspalte
+local LABEL_W = 180   -- Breite der Beschriftungsspalte
+local ROW_W = 590
+
+-- Zustandsabfragen für das Ausgrauen ---------------------------------------------
+local function db() return ns.db end
+local function style() return ns.db.style end
+local function Mode() return ns.db.mode end
+local function IsBar() return Mode() == "bar" end
+local function IsRing() return Mode() == "ring" end
+local function IsCircle() return Mode() ~= "bar" end
+local function OuterSymbols() return IsRing() and style().outerStyle == "symbols" end
+local function InnerSymbols() return IsCircle() and style().innerStyle == "symbols" end
+local function TimerOn() return db().modules.fsr or db().modules.ticks end
 
 local function Changed()
     ns.Display:Refresh()
+    O:RefreshActive()
+end
+
+-- Tooltip ---------------------------------------------------------------------------
+local function ShowTip(row)
+    if not row or not row.tipTitle then return end
+    GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
+    GameTooltip:AddLine(row.tipTitle, 1, 0.82, 0)
+    if row.tip then GameTooltip:AddLine(row.tip, 1, 1, 1, true) end
+    if row.inactive then GameTooltip:AddLine(L.TIP_INACTIVE, 0.6, 0.6, 0.6, true) end
+    GameTooltip:Show()
+end
+local function HideTip() GameTooltip:Hide() end
+
+-- Eine Zeile mit Tooltip und optionaler Aktiv-Bedingung
+local function Row(parent, x, y, title, tip, active, w)
+    local row = CreateFrame("Frame", nil, parent)
+    row:SetPoint("TOPLEFT", x, y + 4)
+    row:SetSize(w or ROW_W, 26)
+    row:EnableMouse(true)
+    row.tipTitle, row.tip, row.active = title, tip, active
+    row.controls = {}
+    row:SetScript("OnEnter", ShowTip)
+    row:SetScript("OnLeave", HideTip)
+    O.rows[#O.rows + 1] = row
+    return row
+end
+
+local function AddControl(row, c)
+    row.controls[#row.controls + 1] = c
+    c:HookScript("OnEnter", function() ShowTip(row) end)
+    c:HookScript("OnLeave", HideTip)
 end
 
 -- Bausteine ----------------------------------------------------------------------
@@ -32,27 +78,33 @@ local function Label(parent, text, x, y, template)
     return fs
 end
 
-local function Check(parent, text, x, y, get, set)
-    local cb = CreateFrame("CheckButton", nil, parent, "UICheckButtonTemplate")
-    cb:SetPoint("TOPLEFT", x, y + 4)
-    local lbl = cb:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+local function Check(parent, text, x, y, get, set, tip, active, w)
+    local row = Row(parent, x, y, text, tip, active, w)
+    local cb = CreateFrame("CheckButton", nil, row, "UICheckButtonTemplate")
+    cb:SetPoint("LEFT", row, "LEFT", 0, 0)
+    local lbl = row:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
     lbl:SetPoint("LEFT", cb, "RIGHT", 2, 1)
     lbl:SetText(text)
     cb:SetScript("OnClick", function(self) set(self:GetChecked() and true or false); Changed() end)
-    cb.Refresh = function(self) self:SetChecked(get()) end
-    O.widgets[#O.widgets + 1] = cb
-    return cb
+    AddControl(row, cb)
+    local holder = { Refresh = function() cb:SetChecked(get() and true or false) end }
+    O.widgets[#O.widgets + 1] = holder
+    return holder
 end
 
 -- Auswahl mit < > Pfeilen
-local function Cycler(parent, text, x, y, valuesFn, labelFn, get, set)
-    Label(parent, text, x, y)
-    local prev = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
-    prev:SetSize(26, 22); prev:SetPoint("TOPLEFT", x + LABEL_W, y + 4); prev:SetText("<")
-    local box = parent:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-    box:SetPoint("LEFT", prev, "RIGHT", 6, 0); box:SetWidth(220); box:SetJustifyH("CENTER")
-    local nextB = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
+local function Cycler(parent, text, x, y, valuesFn, labelFn, get, set, tip, active)
+    local row = Row(parent, x, y, text, tip, active)
+    local lbl = row:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+    lbl:SetPoint("LEFT", row, "LEFT", 0, 0)
+    lbl:SetText(text)
+    local prev = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
+    prev:SetSize(26, 22); prev:SetPoint("LEFT", row, "LEFT", LABEL_W, 0); prev:SetText("<")
+    local box = row:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+    box:SetPoint("LEFT", prev, "RIGHT", 6, 0); box:SetWidth(240); box:SetJustifyH("CENTER")
+    local nextB = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
     nextB:SetSize(26, 22); nextB:SetPoint("LEFT", box, "RIGHT", 6, 0); nextB:SetText(">")
+    AddControl(row, prev); AddControl(row, nextB)
 
     local holder = { Refresh = function() box:SetText(labelFn(get())) end }
     local function Step(dir)
@@ -73,12 +125,15 @@ local function FormatValue(fmt, v)
     return string.format(fmt, v)
 end
 
-local function Slider(parent, text, x, y, minV, maxV, step, fmt, get, set)
-    Label(parent, text, x, y)
-    local s = CreateFrame("Slider", nil, parent, "BackdropTemplate")
+local function Slider(parent, text, x, y, minV, maxV, step, fmt, get, set, tip, active)
+    local row = Row(parent, x, y, text, tip, active)
+    local lbl = row:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+    lbl:SetPoint("LEFT", row, "LEFT", 0, 0)
+    lbl:SetText(text)
+    local s = CreateFrame("Slider", nil, row, "BackdropTemplate")
     s:SetOrientation("HORIZONTAL")
-    s:SetSize(220, 16)
-    s:SetPoint("TOPLEFT", x + LABEL_W + 4, y)
+    s:SetSize(240, 16)
+    s:SetPoint("LEFT", row, "LEFT", LABEL_W + 4, 0)
     s:SetBackdrop({
         bgFile = "Interface\\Buttons\\UI-SliderBar-Background",
         edgeFile = "Interface\\Buttons\\UI-SliderBar-Border",
@@ -89,7 +144,7 @@ local function Slider(parent, text, x, y, minV, maxV, step, fmt, get, set)
     s:SetMinMaxValues(minV, maxV)
     s:SetValueStep(step)
     s:SetObeyStepOnDrag(true)
-    local val = parent:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    local val = row:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
     val:SetPoint("LEFT", s, "RIGHT", 8, 0)
     local updating = false
     s:SetScript("OnValueChanged", function(_, v)
@@ -98,14 +153,15 @@ local function Slider(parent, text, x, y, minV, maxV, step, fmt, get, set)
         if updating then return end
         set(v); Changed()
     end)
-    s.Refresh = function()
+    AddControl(row, s)
+    local holder = { Refresh = function()
         updating = true
         s:SetValue(get())
         val:SetText(FormatValue(fmt, get()))
         updating = false
-    end
-    O.widgets[#O.widgets + 1] = s
-    return s
+    end }
+    O.widgets[#O.widgets + 1] = holder
+    return holder
 end
 
 local function OpenColorPicker(r, g, b, onChange)
@@ -136,47 +192,41 @@ local function OpenColorPicker(r, g, b, onChange)
 end
 
 local function Swatch(parent, text, key, x, y)
-    local b = CreateFrame("Button", nil, parent, "BackdropTemplate")
+    local row = Row(parent, x, y, text, L.TT_COLOR_PICK .. "\n" .. L.TT_COLOR_RESET, nil, 185)
+    local b = CreateFrame("Button", nil, row, "BackdropTemplate")
     b:SetSize(22, 22)
-    b:SetPoint("TOPLEFT", x, y)
+    b:SetPoint("LEFT", row, "LEFT", 0, 0)
     b:SetBackdrop({ edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border", edgeSize = 10,
                     insets = { left = 2, right = 2, top = 2, bottom = 2 } })
     local tex = b:CreateTexture(nil, "ARTWORK")
     tex:SetPoint("TOPLEFT", 3, -3); tex:SetPoint("BOTTOMRIGHT", -3, 3)
     tex:SetColorTexture(1, 1, 1)
-    local lbl = b:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+    local lbl = row:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
     lbl:SetPoint("LEFT", b, "RIGHT", 6, 0)
     lbl:SetText(text)
-    local mark = b:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    local mark = row:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
     mark:SetPoint("LEFT", lbl, "RIGHT", 4, 0)
-    b.Refresh = function()
+    local holder = { Refresh = function()
         local r, g, bl = ns.GetColor(key)
         tex:SetColorTexture(r, g, bl)
         mark:SetText(ns.db.colors[key] and "*" or "")   -- * = eigene Farbe
-    end
+    end }
     b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     b:SetScript("OnClick", function(_, button)
         if button == "RightButton" then          -- Rechtsklick: zurück zur Themenfarbe
             ns.db.colors[key] = nil
-            b.Refresh(); Changed()
+            holder.Refresh(); Changed()
             return
         end
         local r, g, bl = ns.GetColor(key)
         OpenColorPicker(r, g, bl, function(nr, ng, nb)
             ns.db.colors[key] = { nr, ng, nb }
-            b.Refresh(); Changed()
+            holder.Refresh(); Changed()
         end)
     end)
-    b:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:AddLine(text)
-        GameTooltip:AddLine(L.TT_COLOR_PICK, 1, 1, 1)
-        GameTooltip:AddLine(L.TT_COLOR_RESET, 1, 1, 1)
-        GameTooltip:Show()
-    end)
-    b:SetScript("OnLeave", function() GameTooltip:Hide() end)
-    O.widgets[#O.widgets + 1] = b
-    return b
+    AddControl(row, b)
+    O.widgets[#O.widgets + 1] = holder
+    return holder
 end
 
 local function Button(parent, text, x, y, w, onClick)
@@ -233,13 +283,24 @@ local function ShapeLabel(which)
     end
 end
 
--- Auswahl aus einer übersetzten Tabelle
-local function Lookup(tbl) return function(v) return tbl[v] or v end end
+-- Laufrichtung: Beschriftung passend zum Modus
+local function DirLabel(v)
+    if IsBar() then return v and L.DIR_RIGHT or L.DIR_LEFT end
+    return v and L.DIR_CW or L.DIR_CCW
+end
 
-local RING_STYLES = { "symbols", "solid" }
-local BG_SHAPES = { "disc", "soft", "ring" }
-local TEXT_MODES = { "percent", "value", "both", "none" }
-local MODULE_ORDER = { "ring", "fsr", "ticks", "spark", "decor", "text", "background", "rim", "animations" }
+local function DecorPartPresent(part)
+    if not db().modules.decor or db().decor == "none" then return false end
+    for _, d in ipairs(ns.GetDecorSource().decor or {}) do
+        if d.part == part then return true end
+    end
+    return false
+end
+
+local function Lookup(tbl) return function(v) return tbl[v] or v end end
+local function List(...) local t = { ... }; return function() return t end end
+
+local MODULE_ORDER = { "ring", "fsr", "ticks", "spark", "decor", "text", "background", "rim", "animations", "fallback" }
 
 local function Pct(v) return string.format("%d%%", math.floor(v * 100 + 0.5)) end
 local function Times(v) return string.format("%.2fx", v) end
@@ -254,11 +315,9 @@ function O:Build()
     scroll:SetPoint("TOPLEFT", 0, -4)
     scroll:SetPoint("BOTTOMRIGHT", -28, 4)
     local c = CreateFrame("Frame", nil, scroll)
-    c:SetSize(620, 100)
+    c:SetSize(640, 100)
     scroll:SetScrollChild(c)
 
-    local db = function() return ns.db end
-    local style = function() return ns.db.style end
     local function SG(key) return function() return style()[key] end end
     local function SS(key) return function(v) style()[key] = v end end
     local y = -12
@@ -267,83 +326,142 @@ function O:Build()
     title:SetPoint("TOPLEFT", 16, y)
     title:SetText("|cff7fb2ffMana|r|cffffd166Sigil|r")
     local sub = Label(c, L.OPT_SUBTITLE, 16, y - 30, "GameFontHighlightSmall")
-    sub:SetWidth(580); sub:SetJustifyH("LEFT")
+    sub:SetWidth(600); sub:SetJustifyH("LEFT")
     y = y - 64
 
-    -- Thema ----------------------------------------------------------------
-    Header(c, L.H_THEME, y); y = y - 34
-    Cycler(c, L.O_THEME, 20, y, ThemeValues, ThemeLabel,
-        function() return db().theme end, function(v) db().theme = v end)
+    -- Darstellung -----------------------------------------------------------
+    Header(c, L.H_DISPLAY, y); y = y - 34
+    Cycler(c, L.O_MODE, 20, y, List("ring", "pie", "bar"), Lookup(L.MODES),
+        function() return db().mode end, function(v) db().mode = v end, L.TIP_MODE)
     y = y - 30
-    Cycler(c, L.O_DECOR, 20, y, DecorValues, DecorLabel,
-        function() return db().decor end, function(v) db().decor = v end)
-    y = y - 30
-    Slider(c, L.O_DECOR_SCALE, 20, y, 0.3, 2.0, 0.05, Times, SG("decorScale"), SS("decorScale"))
-    y = y - 40
-
-    -- Gesamtgröße -----------------------------------------------------------
-    Header(c, L.H_SIZE, y); y = y - 34
     Slider(c, L.O_BASESIZE, 20, y, 60, 300, 5, "%d px",
-        function() return db().size end, function(v) db().size = v end)
-    y = y - 28
-    Slider(c, L.O_SCALE, 20, y, 0.5, 2.0, 0.05, Times,
-        function() return db().scale end, function(v) db().scale = v end)
+        function() return db().size end, function(v) db().size = v end, L.TIP_SIZE)
     y = y - 28
     Slider(c, L.O_ALPHA, 20, y, 0.1, 1.0, 0.05, Pct,
-        function() return db().alpha end, function(v) db().alpha = v end)
+        function() return db().alpha end, function(v) db().alpha = v end, L.TIP_ALPHA)
     y = y - 40
 
-    -- Ringe ----------------------------------------------------------------------
-    local function RingSection(header, prefix, which, countMin, countMax, radMin, radMax)
-        Header(c, header, y); y = y - 34
-        Cycler(c, L.O_STYLE, 20, y, function() return RING_STYLES end, Lookup(L.RING_STYLES),
-            SG(prefix .. "Style"), SS(prefix .. "Style"))
-        y = y - 30
-        Cycler(c, L.O_SHAPE, 20, y, ShapeValues, ShapeLabel(which), SG(prefix .. "Shape"), SS(prefix .. "Shape"))
-        y = y - 30
-        Slider(c, L.O_COUNT, 20, y, countMin, countMax, 1, "%d", SG(prefix .. "Count"), SS(prefix .. "Count"))
-        y = y - 28
-        Slider(c, L.O_SYMSIZE, 20, y, 0.3, 3.0, 0.05, Times, SG(prefix .. "Size"), SS(prefix .. "Size"))
-        y = y - 28
-        Slider(c, L.O_RADIUS, 20, y, radMin, radMax, 0.01, Pct, SG(prefix .. "Radius"), SS(prefix .. "Radius"))
+    -- Thema & Deko -----------------------------------------------------------
+    Header(c, L.H_THEME, y); y = y - 34
+    Cycler(c, L.O_THEME, 20, y, ThemeValues, ThemeLabel,
+        function() return db().theme end, function(v) db().theme = v end, L.TIP_THEME)
+    y = y - 30
+    Cycler(c, L.O_DECOR, 20, y, DecorValues, DecorLabel,
+        function() return db().decor end, function(v) db().decor = v end, L.TIP_DECOR,
+        function() return db().modules.decor end)
+    y = y - 30
+    Slider(c, L.O_DECOR_SCALE, 20, y, 0.3, 2.0, 0.05, Times, SG("decorScale"), SS("decorScale"),
+        L.TIP_DECOR_SCALE, function() return db().modules.decor and db().decor ~= "none" end)
+    y = y - 30
+    Label(c, L.O_DECOR_PARTS, 20, y)
+    y = y - 22
+    for i, part in ipairs(ns.decorParts) do
+        local col = (i - 1) % 3
+        local row = math.floor((i - 1) / 3)
+        Check(c, L.DECOR_PARTS[part], 30 + col * 195, y - row * 26,
+            function() return not db().decorOff[part] end,
+            function(v) db().decorOff[part] = (not v) or nil end,
+            L.TIP_DECOR_PARTS, function() return DecorPartPresent(part) end, 190)
     end
-    RingSection(L.H_OUTER, "outer", "outer", 8, 120, 0.15, 0.7)
-    y = y - 40
-    RingSection(L.H_INNER, "inner", "inner", 6, 100, 0.1, 0.6)
-    y = y - 34
-    Check(c, L.O_ROTATE, 20, y, SG("rotateSymbols"), SS("rotateSymbols"))
+    y = y - math.ceil(#ns.decorParts / 3) * 26 - 16
+
+    -- Mana-Anzeige ----------------------------------------------------------------
+    Header(c, L.H_OUTER, y); y = y - 34
+    Cycler(c, L.O_STYLE, 20, y, List("symbols", "solid"), Lookup(L.RING_STYLES),
+        SG("outerStyle"), SS("outerStyle"), L.TIP_STYLE, IsRing)
+    y = y - 30
+    Cycler(c, L.O_SHAPE, 20, y, ShapeValues, ShapeLabel("outer"), SG("outerShape"), SS("outerShape"),
+        L.TIP_SHAPE, OuterSymbols)
+    y = y - 30
+    Slider(c, L.O_COUNT, 20, y, 8, 120, 1, "%d", SG("outerCount"), SS("outerCount"), L.TIP_COUNT, OuterSymbols)
     y = y - 28
-    Slider(c, L.O_EMPTY_ALPHA, 20, y, 0, 1, 0.05, Pct, SG("emptyAlpha"), SS("emptyAlpha"))
+    Slider(c, L.O_SYMSIZE, 20, y, 0.3, 3.0, 0.05, Times, SG("outerSize"), SS("outerSize"), L.TIP_SYMSIZE, IsRing)
+    y = y - 28
+    Slider(c, L.O_RADIUS, 20, y, 0.15, 0.7, 0.01, Pct, SG("outerRadius"), SS("outerRadius"), L.TIP_RADIUS, IsCircle)
+    y = y - 30
+    Cycler(c, L.O_DIRECTION, 20, y, List(true, false), DirLabel, SG("outerClockwise"), SS("outerClockwise"),
+        L.TIP_DIRECTION)
+    y = y - 30
+    Slider(c, L.O_BAR_WIDTH, 20, y, 0.4, 3.0, 0.05, Times, SG("barWidth"), SS("barWidth"), L.TIP_BAR, IsBar)
+    y = y - 28
+    Slider(c, L.O_BAR_HEIGHT, 20, y, 0.3, 3.0, 0.05, Times, SG("barHeight"), SS("barHeight"), L.TIP_BAR, IsBar)
+    y = y - 30
+    Cycler(c, L.O_BAR_TEXTURE, 20, y, List("smooth", "flat", "blizzard"), Lookup(L.BAR_TEXTURES),
+        SG("barTexture"), SS("barTexture"), L.TIP_BAR, IsBar)
     y = y - 40
 
-    -- Hintergrund -----------------------------------------------------------
+    -- 5-Sek.-Regel & Ticks -----------------------------------------------------------
+    Header(c, L.H_INNER, y); y = y - 34
+    Cycler(c, L.O_FSR_FILL, 20, y, List("drain", "fill"), Lookup(L.FILL_MODES), SG("fsrFill"), SS("fsrFill"),
+        L.TIP_FSR_FILL, function() return db().modules.fsr end)
+    y = y - 30
+    Cycler(c, L.O_TICK_FILL, 20, y, List("fill", "drain"), Lookup(L.FILL_MODES), SG("tickFill"), SS("tickFill"),
+        L.TIP_TICK_FILL, function() return db().modules.ticks end)
+    y = y - 30
+    Cycler(c, L.O_DIRECTION, 20, y, List(true, false), DirLabel, SG("innerClockwise"), SS("innerClockwise"),
+        L.TIP_DIRECTION, TimerOn)
+    y = y - 30
+    Cycler(c, L.O_STYLE, 20, y, List("symbols", "solid"), Lookup(L.RING_STYLES),
+        SG("innerStyle"), SS("innerStyle"), L.TIP_STYLE, function() return IsCircle() and TimerOn() end)
+    y = y - 30
+    Cycler(c, L.O_SHAPE, 20, y, ShapeValues, ShapeLabel("inner"), SG("innerShape"), SS("innerShape"),
+        L.TIP_SHAPE, function() return InnerSymbols() and TimerOn() end)
+    y = y - 30
+    Slider(c, L.O_COUNT, 20, y, 6, 100, 1, "%d", SG("innerCount"), SS("innerCount"), L.TIP_COUNT,
+        function() return InnerSymbols() and TimerOn() end)
+    y = y - 28
+    Slider(c, L.O_SYMSIZE, 20, y, 0.3, 3.0, 0.05, Times, SG("innerSize"), SS("innerSize"), L.TIP_SYMSIZE,
+        function() return IsCircle() and TimerOn() end)
+    y = y - 28
+    Slider(c, L.O_RADIUS, 20, y, 0.1, 0.6, 0.01, Pct, SG("innerRadius"), SS("innerRadius"), L.TIP_RADIUS,
+        function() return IsRing() and TimerOn() end)
+    y = y - 32
+    Check(c, L.O_HIDE_IDLE, 20, y, SG("innerHideIdle"), SS("innerHideIdle"), L.TIP_HIDE_IDLE, TimerOn)
+    y = y - 28
+    Check(c, L.O_ROTATE, 20, y, SG("rotateSymbols"), SS("rotateSymbols"), L.TIP_ROTATE,
+        function() return OuterSymbols() or InnerSymbols() end)
+    y = y - 28
+    Slider(c, L.O_EMPTY_ALPHA, 20, y, 0, 1, 0.05, Pct, SG("emptyAlpha"), SS("emptyAlpha"), L.TIP_EMPTY_ALPHA)
+    y = y - 40
+
+    -- Hintergrund & Rand -----------------------------------------------------------
     Header(c, L.H_BG, y); y = y - 34
-    Cycler(c, L.O_BG_SHAPE, 20, y, function() return BG_SHAPES end, Lookup(L.BG_SHAPES),
-        SG("bgShape"), SS("bgShape"))
+    Cycler(c, L.O_BG_SHAPE, 20, y, List("disc", "soft", "ring"), Lookup(L.BG_SHAPES),
+        SG("bgShape"), SS("bgShape"), L.TIP_BG_SHAPE, function() return IsCircle() and db().modules.background end)
     y = y - 30
-    Slider(c, L.O_BG_SIZE, 20, y, 0.2, 2.0, 0.05, Times, SG("bgSize"), SS("bgSize"))
+    Slider(c, L.O_BG_SIZE, 20, y, 0.5, 2.0, 0.05, Times, SG("bgSize"), SS("bgSize"), L.TIP_BG_SIZE,
+        function() return IsCircle() and db().modules.background end)
     y = y - 28
-    Slider(c, L.O_BG_ALPHA, 20, y, 0, 1, 0.05, Pct, SG("bgAlpha"), SS("bgAlpha"))
+    Slider(c, L.O_BG_ALPHA, 20, y, 0, 1, 0.05, Pct, SG("bgAlpha"), SS("bgAlpha"), L.TIP_BG_ALPHA,
+        function() return db().modules.background end)
     y = y - 28
-    Slider(c, L.O_RIM_SIZE, 20, y, 0.5, 1.8, 0.02, Times, SG("rimSize"), SS("rimSize"))
+    local rimActive = function() return IsCircle() and db().modules.rim end
+    Slider(c, L.O_RIM_SIZE, 20, y, 0.8, 1.5, 0.01, Times, SG("rimSize"), SS("rimSize"), L.TIP_RIM, rimActive)
     y = y - 28
-    Slider(c, L.O_RIM_ALPHA, 20, y, 0, 1, 0.05, Pct, SG("rimAlpha"), SS("rimAlpha"))
+    Slider(c, L.O_RIM_ALPHA, 20, y, 0, 1, 0.05, Pct, SG("rimAlpha"), SS("rimAlpha"), L.TIP_RIM, rimActive)
+    y = y - 32
+    Check(c, L.O_RIM_FSR, 20, y, SG("rimFSR"), SS("rimFSR"), L.TIP_RIM_FSR, rimActive)
     y = y - 40
 
-    -- Text & Funke -----------------------------------------------------------
+    -- Text, MP5 & Funke -----------------------------------------------------------
+    local textOn = function() return db().modules.text end
     Header(c, L.H_TEXT, y); y = y - 34
-    Cycler(c, L.O_TEXTMODE, 20, y, function() return TEXT_MODES end, Lookup(L.TEXT_MODES),
-        function() return db().textMode end, function(v) db().textMode = v end)
+    Cycler(c, L.O_TEXTMODE, 20, y, List("percent", "value", "both", "none"), Lookup(L.TEXT_MODES),
+        function() return db().textMode end, function(v) db().textMode = v end, L.TIP_TEXTMODE, textOn)
     y = y - 30
-    Slider(c, L.O_TEXTSCALE, 20, y, 0.4, 2.5, 0.05, Times, SG("textScale"), SS("textScale"))
+    Cycler(c, L.O_MP5, 20, y, List("current", "both", "off"), Lookup(L.MP5_MODES),
+        SG("mp5Mode"), SS("mp5Mode"), L.TIP_MP5, textOn)
+    y = y - 30
+    Slider(c, L.O_TEXTSCALE, 20, y, 0.4, 2.5, 0.05, Times, SG("textScale"), SS("textScale"), L.TIP_TEXTSCALE, textOn)
     y = y - 28
-    Slider(c, L.O_SPARKSIZE, 20, y, 0.3, 3.0, 0.05, Times, SG("sparkSize"), SS("sparkSize"))
+    Slider(c, L.O_SPARKSIZE, 20, y, 0.3, 3.0, 0.05, Times, SG("sparkSize"), SS("sparkSize"), L.TIP_SPARKSIZE,
+        function() return db().modules.spark end)
     y = y - 40
 
     -- Farben -----------------------------------------------------------------
     Header(c, L.H_COLORS, y); y = y - 34
     Label(c, L.O_COLOR_HINT, 20, y, "GameFontDisableSmall")
-    y = y - 22
+    y = y - 24
     for i, ck in ipairs(ns.colorKeys) do
         local col = (i - 1) % 3
         local row = math.floor((i - 1) / 3)
@@ -360,18 +478,19 @@ function O:Build()
     for i, key in ipairs(MODULE_ORDER) do
         local col = (i - 1) % 2
         local row = math.floor((i - 1) / 2)
-        Check(c, L.MODULES[key], 20 + col * 290, y - row * 28,
+        Check(c, L.MODULES[key], 20 + col * 300, y - row * 28,
             function() return db().modules[key] end,
-            function(v) db().modules[key] = v end)
+            function(v) db().modules[key] = v end, nil, nil, 295)
     end
     y = y - math.ceil(#MODULE_ORDER / 2) * 28 - 14
 
     -- Verhalten ----------------------------------------------------------------
     Header(c, L.H_BEHAVIOR, y); y = y - 34
     Check(c, L.O_ENABLED, 20, y,
-        function() return db().enabled end, function(v) db().enabled = v; ns.Minimap:Refresh() end)
-    Check(c, L.O_MINIMAP, 310, y,
-        function() return not db().minimap.hide end, function(v) db().minimap.hide = not v; ns.Minimap:Refresh() end)
+        function() return db().enabled end, function(v) db().enabled = v; ns.Minimap:Refresh() end, nil, nil, 295)
+    Check(c, L.O_MINIMAP, 320, y,
+        function() return not db().minimap.hide end,
+        function(v) db().minimap.hide = not v; ns.Minimap:Refresh() end, nil, nil, 295)
     y = y - 28
     Check(c, L.O_LOCK, 20, y,
         function() return db().locked end, function(v) db().locked = v end)
@@ -418,11 +537,25 @@ function O:IsOpen()
     return self.panel ~= nil and self.panel:IsVisible() == true
 end
 
+-- Zeilen ohne Wirkung ausgrauen
+function O:RefreshActive()
+    if not ns.db then return end
+    for _, row in ipairs(self.rows) do
+        local on = (row.active == nil) or (row.active() and true or false)
+        row.inactive = not on
+        row:SetAlpha(on and 1 or 0.4)
+        for _, ctl in ipairs(row.controls) do
+            if on then ctl:Enable() else ctl:Disable() end
+        end
+    end
+end
+
 function O:RefreshWidgets()
     if not ns.db then return end
     for _, w in ipairs(self.widgets) do
         if w.Refresh then w:Refresh() end
     end
+    self:RefreshActive()
 end
 
 function O:Open()

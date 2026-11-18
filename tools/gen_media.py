@@ -473,8 +473,24 @@ def make_symbols():
         return (l, a)
     sym('leaf', leaf)
 
+# ---------------------------------------------------------------- Tortenstück (für den Torten-Modus)
+# Schmaler Keil vom Mittelpunkt nach oben; 90 Stück ergeben eine volle Torte (je 4°, mit Überlappung).
+def make_wedge():
+    cv = Canvas(256, 2)
+    half = math.radians(2.8)
+    def f(x, y):
+        r = math.hypot(x, y)
+        if r > 0.99: return None
+        th = abs(math.atan2(x, y))          # Winkel zur Achse "oben"
+        if th > half + 0.05: return None
+        d = r * math.sin(half - th) if th < half else -r * math.sin(th - half)
+        a = aa(d, 0.012) * aa(0.97 - r, 0.02)
+        if r < 0.02: a = 1.0
+        return (1.0, a)
+    cv.paint(f); save('wedge', cv)
+
 if __name__ == '__main__':
     # Aufruf: python tools/gen_media.py <Media-Ordner> <Vorschau-Ordner> [name ...]
-    which = sys.argv[3:] or ['glow', 'disc', 'rim', 'wing', 'horn', 'sigil', 'runes', 'rays', 'leaf', 'bolt', 'feather', 'symbols']
+    which = sys.argv[3:] or ['glow', 'disc', 'rim', 'wing', 'horn', 'sigil', 'runes', 'rays', 'leaf', 'bolt', 'feather', 'symbols', 'wedge']
     for w in which:
         globals()['make_' + w]()

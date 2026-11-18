@@ -38,6 +38,7 @@ Minimap.GetHeight = function() return 140 end
 Minimap.GetCenter = function() return 500, 500 end
 Minimap.GetEffectiveScale = function() return 1 end
 GetCursorPosition = function() return 400, 600 end
+GetManaRegen = function() return 12, 3 end   -- Mana pro Sekunde: normal, beim Zaubern
 -- Sprache über Umgebungsvariable LOCALE testen (Standard: deDE)
 GetLocale = function() return os.getenv("LOCALE") or "deDE" end
 for _, f in ipairs({ "Locale", "Core", "Themes", "Tracker", "Display", "Options", "Minimap" }) do
@@ -115,6 +116,50 @@ for k in pairs(ns.db.modules) do ns.db.modules[k] = false end
 ns.Display:Refresh(); upd(nil, 1)
 for k in pairs(ns.db.modules) do ns.db.modules[k] = true end
 ns.Display:Refresh(); upd(nil, 1); ns.Options:RefreshWidgets()
+-- 1.2: Modi, Richtungen, Füllrichtung, MP5, Deko-Teile, Migration
+issecretvalue = nil
+local D = ns.Display
+for _, mode in ipairs({ "ring", "pie", "bar" }) do
+    SlashCmdList.MANASIGIL("mode " .. mode)
+    assert(ns.db.mode == mode and D.mode == mode, "Modus " .. mode)
+    for _, cw in ipairs({ true, false }) do
+        st.outerClockwise, st.innerClockwise = cw, not cw
+        for _, ff in ipairs({ "drain", "fill" }) do
+            st.fsrFill, st.tickFill = ff, ff
+            for _, mp in ipairs({ "off", "current", "both" }) do
+                st.mp5Mode = mp
+                st.innerHideIdle = (mp == "both")
+                D:Refresh(); now = now + 0.3; upd(nil, 1)
+                mana = 600; ev(nil, "UNIT_POWER_UPDATE", "player", "MANA"); now = now + 0.5; upd(nil, 1)
+                now = now + 6; mana = 650; ev(nil, "UNIT_POWER_UPDATE", "player", "MANA"); now = now + 0.5; upd(nil, 1)
+            end
+        end
+    end
+end
+assert(ns.Display.outer.n == 0 and ns.Display.H1 and ns.Display.H1 > 0, "Balken-Modus aktiv")
+SlashCmdList.MANASIGIL("mode pie"); assert(D.outer.n == 90 and D.outer.kind == "pie", "Torte mit 90 Stücken")
+-- MP5: 12 bzw. 3 Mana/Sek. -> 60 / 15 pro 5 Sekunden
+local b5, c5 = ns.Tracker:GetMP5(); assert(b5 == 60 and c5 == 15, "MP5-Berechnung")
+st.mp5Mode = "both"; ns.Tracker:StartFSR()
+local line = D:MP5Line(now); print("MP5-Zeile:", line)
+assert(line:find("60") and line:find("15"), "MP5-Zeile enthält beide Werte")
+-- Drehung über Texturkoordinaten: Mittelpunkt bleibt in der Mitte
+local got = {}
+local fake = { SetTexCoord = function(_, ...) got = { ... } end }
+ns.RotTexCoord(fake, math.pi / 2)
+local cx = (got[1] + got[3] + got[5] + got[7]) / 4
+local cy = (got[2] + got[4] + got[6] + got[8]) / 4
+assert(math.abs(cx - 0.5) < 1e-9 and math.abs(cy - 0.5) < 1e-9, "Drehung um den Mittelpunkt")
+-- Deko-Teile einzeln ausblenden (Engelsflügel: Heiligenschein weg)
+ns.db.theme = "angel"; ns.db.decor = "theme"; ns.db.decorOff.halo = true
+local count = #ns.GetDecor(); ns.db.decorOff.halo = nil
+assert(count == #ns.GetDecor() - 1, "Heiligenschein einzeln ausblendbar")
+-- Ersatzbalken abschaltbar
+ns.db.modules.fallback = false; issecretvalue = function(v) return type(v) == "number" end
+SlashCmdList.MANASIGIL("mode ring"); upd(nil, 1); issecretvalue = nil
+SlashCmdList.MANASIGIL("debug")
+ns.Options:RefreshWidgets()
+
 -- Übersetzung: alle Schlüssel der englischen Tabelle müssen auch in der aktiven Sprache existieren
 print("Sprache", GetLocale(), "Thema angel =", ns.themes.angel.name, "| Symbol skull =", ns.shapeNames.skull)
 assert(ns.L.H_THEME ~= "H_THEME" and ns.L.COLORS.ring and ns.L.MODULES.rim, "Übersetzung fehlt")

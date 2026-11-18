@@ -1,36 +1,41 @@
 -- ManaSigil – Kern: Namespace, Datenbank, Events, Slash-Befehle
 local addonName, ns = ...
+local L = ns.L
 
 ns.name  = addonName
 ns.MEDIA = "Interface\\AddOns\\" .. addonName .. "\\Media\\"
 ns.MANA  = (Enum and Enum.PowerType and Enum.PowerType.Mana) or 0
+
+local DB_VERSION = 2
 
 -- Standardwerte (pro Charakter gespeichert)
 ns.defaults = {
     enabled    = true,      -- Anzeige an/aus (Minimap-Linksklick)
     minimap    = { hide = false, angle = 215 }, -- Minimap-Button
     point      = { "CENTER", "UIParent", "CENTER", 0, -160 },
+    mode       = "ring",    -- ring = Kreis, pie = Torte, bar = Balken
     size       = 120,       -- Grundgröße in Pixeln
-    scale      = 1.0,
+    scale      = 1.0,       -- (veraltet, wird in "size" übernommen)
     alpha      = 1.0,
     locked     = false,
     theme      = "auto",    -- "auto" = nach Klasse, sonst Themen-Schlüssel
     decor      = "theme",   -- "theme" = wie Thema, "none" = keine, sonst Themen-Schlüssel
+    decorOff   = {},        -- einzeln ausgeblendete Deko-Teile, z. B. { halo = true }
     textMode   = "percent", -- percent | value | both | none
     hideWhenFull = false,   -- außerhalb des Kampfes bei vollem Mana ausblenden
     onlyManaClasses = true, -- bei Klassen ohne Mana nicht anzeigen
     modules = {
-        ring       = true,  -- äußerer Mana-Ring
-        fsr        = true,  -- innerer Ring: 5-Sekunden-Regel
-        ticks      = true,  -- innerer Ring: Mana-Tick-Timer (2 s)
-        spark      = true,  -- Leuchtfunke am Ende des Mana-Rings
+        ring       = true,  -- Mana-Anzeige (Ring / Torte / Balken)
+        fsr        = true,  -- 5-Sekunden-Regel
+        ticks      = true,  -- Mana-Tick-Timer (2 s)
+        spark      = true,  -- Leuchtfunke am Ende der Mana-Anzeige
         decor      = true,  -- Themen-Dekoration (Flügel, Hörner ...)
-        text       = true,  -- Zahlen in der Mitte
-        background = true,  -- Scheibe hinter dem Ring
-        rim        = true,  -- feiner Rand um den Ring
+        text       = true,  -- Zahlen
+        background = true,  -- Hintergrund
+        rim        = true,  -- Rand um den Ring
         animations = true,  -- Rotation / Schweben / Pulsieren
+        fallback   = true,  -- Ersatzbalken, falls das Spiel Manawerte verbirgt
     },
-    -- Form & Größen (alle Größen relativ zur Grundgröße)
     style = {
         outerStyle  = "symbols", -- symbols = einzelne Symbole, solid = durchgehender Kreis
         innerStyle  = "symbols",
@@ -42,30 +47,29 @@ ns.defaults = {
         innerSize   = 1.0,
         outerRadius = 0.42,
         innerRadius = 0.31,
-        rotateSymbols = true,    -- Symbole zeigen nach außen
-        emptyAlpha  = 0.45,      -- Deckkraft des leeren Ringteils
+        outerClockwise = true,   -- Laufrichtung der Mana-Anzeige
+        innerClockwise = true,   -- Laufrichtung des 5-Sek.-/Tick-Rings
+        fsrFill     = "drain",   -- 5-Sek.-Regel: drain = leert sich, fill = füllt sich
+        tickFill    = "fill",    -- Tick-Timer: fill = füllt sich bis zum Tick, drain = leert sich
+        innerHideIdle = true,    -- innerer Ring bei vollem Mana ausblenden
+        rotateSymbols = false,   -- eckige Symbole zeigen nach außen
+        emptyAlpha  = 0.45,      -- Deckkraft des leeren Teils
         bgShape     = "disc",    -- disc | soft | ring
         bgSize      = 1.0,
         bgAlpha     = 0.85,
         rimSize     = 1.0,
         rimAlpha    = 0.55,
+        rimFSR      = true,      -- Rand leuchtet während der 5-Sek.-Regel
+        barWidth    = 1.0,       -- Balken-Modus
+        barHeight   = 1.0,
+        barTexture  = "smooth",  -- smooth | flat | blizzard
+        mp5Mode     = "current", -- off | current | both
         textScale   = 1.0,
         decorScale  = 1.0,
         sparkSize   = 1.0,
     },
     colors = {},            -- eigene Farben (siehe ns.colorKeys)
 }
-
--- Verfügbare Symbole für die Ringe
-ns.shapeOrder = { "dot", "solid", "circle", "diamond", "star", "square", "heart", "flame", "cross", "skull", "leaf" }
-local L = ns.L
-ns.shapeNames = L.SHAPES
-
--- Einstellbare Farben (Reihenfolge = Optionsmenü)
-ns.colorKeys = {}
-for _, k in ipairs({ "ring", "empty", "fsr", "tick", "bg", "rim", "text", "spark", "decor" }) do
-    ns.colorKeys[#ns.colorKeys + 1] = { k, L.COLORS[k] }
-end
 
 local function CopyDefaults(src, dst)
     for k, v in pairs(src) do
@@ -77,6 +81,31 @@ local function CopyDefaults(src, dst)
         end
     end
     return dst
+end
+
+-- Alte Einstellungen auf den aktuellen Stand bringen
+local function Migrate(db)
+    local v = db.dbVersion or 1
+    if v < 2 then
+        db.style.rotateSymbols = false                -- Drehen erzeugte "Halbkreise"
+        if db.scale and db.scale ~= 1 then            -- Skalierung in die Grundgröße übernehmen
+            db.size = math.max(60, math.min(300, math.floor(db.size * db.scale + 0.5)))
+        end
+        db.scale = 1
+    end
+    db.dbVersion = DB_VERSION
+end
+
+-- Verfügbare Symbole für die Ringe
+ns.shapeOrder = { "dot", "solid", "circle", "diamond", "star", "square", "heart", "flame", "cross", "skull", "leaf" }
+ns.shapeNames = L.SHAPES
+-- Runde Symbole werden nie gedreht
+ns.roundShapes = { dot = true, solid = true, circle = true }
+
+-- Einstellbare Farben (Reihenfolge = Optionsmenü)
+ns.colorKeys = {}
+for _, k in ipairs({ "ring", "empty", "fsr", "tick", "bg", "rim", "text", "spark", "decor" }) do
+    ns.colorKeys[#ns.colorKeys + 1] = { k, L.COLORS[k] }
 end
 
 -- Hilfsfunktionen -------------------------------------------------------
@@ -99,8 +128,7 @@ end
 
 -- Verwendetes Thema (Farben/Grundstil)
 function ns.GetThemeKey()
-    local db = ns.db
-    local key = db.theme
+    local key = ns.db.theme
     if key == "auto" or not ns.themes[key] then
         key = ns.classDefaults[ns.PlayerClass() or ""] or "classic"
     end
@@ -111,23 +139,30 @@ function ns.GetTheme()
     return ns.themes[ns.GetThemeKey()] or ns.themes.classic
 end
 
--- Verwendete Dekoration (kann von einem anderen Thema stammen)
+-- Quelle der Dekoration (kann ein anderes Thema sein)
+function ns.GetDecorSource()
+    local db = ns.db
+    if db.decor ~= "theme" and ns.themes[db.decor] then return ns.themes[db.decor] end
+    return ns.GetTheme()
+end
+
+-- Verwendete Dekoration (ohne einzeln ausgeblendete Teile)
 function ns.GetDecor()
     local db = ns.db
     if not db.modules.decor or db.decor == "none" then return {} end
-    if db.decor ~= "theme" and ns.themes[db.decor] then
-        return ns.themes[db.decor].decor or {}
+    local out = {}
+    for _, d in ipairs(ns.GetDecorSource().decor or {}) do
+        if not (d.part and db.decorOff[d.part]) then out[#out + 1] = d end
     end
-    return ns.GetTheme().decor or {}
+    return out
 end
 
--- Farbe: eigene Einstellung > Thema > Klassik
+-- Farbe: eigene Einstellung > Thema > abgeleitet > Klassik
 function ns.GetColor(name)
     local c = ns.db.colors[name]
     if type(c) == "table" and c[1] then return c[1], c[2], c[3] end
     local t = ns.GetTheme().colors[name]
     if t then return t[1], t[2], t[3] end
-    -- abgeleitete Farben, falls das Thema sie nicht festlegt
     if name == "empty" then
         local r, g, b = ns.GetColor("ring"); return r * 0.3, g * 0.3, b * 0.3
     elseif name == "rim" then
@@ -179,6 +214,7 @@ function handlers.ADDON_LOADED(name)
     if name ~= addonName then return end
     ManaSigilDB = CopyDefaults(ns.defaults, ManaSigilDB or {})
     ns.db = ManaSigilDB
+    Migrate(ns.db)
     events:UnregisterEvent("ADDON_LOADED")
 end
 
@@ -246,6 +282,21 @@ local function ListThemes()
     ns.Print(string.format(L.THEMES_LIST, "auto, " .. table.concat(parts, ", ")))
 end
 
+-- Diagnose: zeigt, ob das Spiel Manawerte verbirgt, und die Regenerationswerte
+local function Debug()
+    local cur, maxMana = ns.Tracker:GetMana()
+    local function show(v)
+        if v == nil then return "nil" end
+        if ns.IsSecret(v) then return "|cffff6060secret|r" end
+        return tostring(v)
+    end
+    local base, casting = ns.Tracker:GetMP5()
+    ns.Print(string.format("mana=%s/%s  mp5=%s/%s  fsr=%s  tick=%s  mode=%s  issecretvalue=%s",
+        show(cur), show(maxMana), show(base), show(casting),
+        ns.Tracker:InFSR() and "yes" or "no", show(ns.Tracker.tickAmount), ns.db.mode,
+        issecretvalue and "yes" or "no"))
+end
+
 SLASH_MANASIGIL1 = "/manasigil"
 SLASH_MANASIGIL2 = "/msig"
 SlashCmdList.MANASIGIL = function(msg)
@@ -258,6 +309,13 @@ SlashCmdList.MANASIGIL = function(msg)
         ns.db.minimap.hide = not ns.db.minimap.hide
         ns.Minimap:Refresh(); ns.Options:RefreshWidgets()
         ns.Print(ns.db.minimap.hide and L.MINIMAP_HIDDEN or L.MINIMAP_SHOWN)
+    elseif cmd == "mode" then
+        if arg == "ring" or arg == "pie" or arg == "bar" then
+            ns.db.mode = arg; ns.Display:Refresh(); ns.Options:RefreshWidgets()
+            ns.Print(string.format(L.MODE_SET, L.MODES[arg]))
+        else
+            ns.Print("/msig mode ring | pie | bar")
+        end
     elseif cmd == "lock" then
         ns.db.locked = true;  ns.Display:Refresh(); ns.Print(L.LOCKED)
     elseif cmd == "unlock" then
@@ -274,6 +332,8 @@ SlashCmdList.MANASIGIL = function(msg)
         end
     elseif cmd == "test" then
         ns.Tracker:StartFSR(); ns.Display:Show(true); ns.Print(L.TEST_STARTED)
+    elseif cmd == "debug" then
+        Debug()
     else
         ns.Print(L.HELP)
         ListThemes()

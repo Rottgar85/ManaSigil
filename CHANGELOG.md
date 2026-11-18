@@ -7,6 +7,7 @@
   - their own gradient with three colors (full / half / low for mana, empty / middle / full for the timer) and an adjustable middle point
 - Independent of the color gradient of the numbers. Choosing a color switches the bar to the matching mode
 - The former option "Color the mana display too" is carried over into the new mana bar gradient
+- **Visual effects can be switched on and off individually:** decoration rotates, wings float, glow pulses, lightning flickers, spark pulses, border pulses during the five-second rule, flash on every mana tick. Switched-off effects return the decoration to its resting position
 
 ## 1.3.3 – 2026-11-18
 

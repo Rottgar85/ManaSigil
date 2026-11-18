@@ -637,6 +637,23 @@ function O:Build()
     end
     y = y - math.ceil(#MODULE_ORDER / 2) * 28 - 14
 
+    -- Visuelle Effekte ---------------------------------------------------------
+    Header(c, L.H_EFFECTS, y); y = y - 34
+    local animOn = function() return db().modules.animations and db().modules.decor end
+    local effects = {
+        { "fxRotate", animOn }, { "fxBob", animOn },
+        { "fxPulse", animOn }, { "fxFlicker", animOn },
+        { "fxSparkPulse", function() return db().modules.spark end },
+        { "fxRimPulse", function() return IsCircle() and db().modules.rim and style().rimFSR end },
+        { "fxTickFlash", function() return db().modules.ticks end },
+    }
+    for i, e in ipairs(effects) do
+        local col = (i - 1) % 2
+        local row = math.floor((i - 1) / 2)
+        Check(c, L.EFFECTS[e[1]], 20 + col * 300, y - row * 28, SG(e[1]), SS(e[1]), L.TIP_EFFECTS[e[1]], e[2], 295)
+    end
+    y = y - math.ceil(#effects / 2) * 28 - 14
+
     -- Verhalten ----------------------------------------------------------------
     Header(c, L.H_BEHAVIOR, y); y = y - 34
     Check(c, L.O_ENABLED, 20, y,

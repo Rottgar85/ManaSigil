@@ -79,6 +79,14 @@ ns.defaults = {
         textColorMode = "gradient",
         gradMidPct    = 50,      -- bei diesem Füllstand (%) ist die Farbe gelb
         -- Farben der beiden Leisten (unabhängig von den Zahlen)
+        -- Visuelle Effekte einzeln an/aus (Deko-Effekte zusätzlich über das Modul "Animationen")
+        fxRotate      = true,    -- Deko dreht sich
+        fxBob         = true,    -- Deko schwebt (Flügel)
+        fxPulse       = true,    -- Deko pulsiert (Schein, Heiligenschein)
+        fxFlicker     = true,    -- Deko flackert (Blitze)
+        fxSparkPulse  = true,    -- Leuchtfunke pulsiert
+        fxRimPulse    = true,    -- Rand pulsiert während der 5-Sek.-Regel
+        fxTickFlash   = true,    -- Aufblitzen bei jedem Mana-Tick
         manaColorMode = "fixed",   -- Mana-Leiste/-Ring: fixed = Farbe "Mana-Ring", gradient = eigener Verlauf
         manaGradMid   = 50,
         timerColorMode = "fixed",  -- Tick-/5-Sek.-Leiste: fixed = Farben "Mana-Tick"/"5-Sek.-Regel", gradient = Verlauf

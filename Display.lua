@@ -662,7 +662,7 @@ function D:OnFSRStart()
 end
 
 function D:OnTick()
-    self.flashAlpha = 0.6
+    self.flashAlpha = st("fxTickFlash") and 0.6 or 0
     self.tickShownUntil = GetTime() + 1.2
 end
 
@@ -915,7 +915,7 @@ function D:Update(now)
             else
                 self.spark:SetPoint("CENTER", self.bar, "BOTTOM", 0, pos)
             end
-            self.spark:SetAlpha(0.7 + 0.3 * sin(now * 6))
+            self.spark:SetAlpha(st("fxSparkPulse") and (0.7 + 0.3 * sin(now * 6)) or 1)
             self.spark:Show()
         else
             self.spark:Hide()
@@ -945,7 +945,7 @@ function D:Update(now)
             if self.outer.kind == "pie" then rad = rad * 0.92 end
             self.spark:ClearAllPoints()
             self.spark:SetPoint("CENTER", self.main, "CENTER", cos(a) * rad, sin(a) * rad)
-            self.spark:SetAlpha(0.7 + 0.3 * sin(now * 6))
+            self.spark:SetAlpha(st("fxSparkPulse") and (0.7 + 0.3 * sin(now * 6)) or 1)
             self.spark:Show()
         else
             self.spark:Hide()
@@ -1002,7 +1002,8 @@ function D:Update(now)
     if mode ~= "bar" and mods.rim then
         if state == "fsr" and st("rimFSR") then
             local fr, fg, fb = ns.GetColor("fsr")
-            self.rim:SetVertexColor(fr, fg, fb, min(1, st("rimAlpha") + 0.35 + 0.15 * sin(now * 8)))
+            local pulse = st("fxRimPulse") and 0.15 * sin(now * 8) or 0
+            self.rim:SetVertexColor(fr, fg, fb, min(1, st("rimAlpha") + 0.35 + pulse))
         else
             local rr, rg, rb = ns.GetColor("rim")
             self.rim:SetVertexColor(rr, rg, rb, st("rimAlpha"))
@@ -1078,22 +1079,26 @@ function D:Update(now)
         self.flash:SetAlpha(self.flashAlpha)
     end
 
-    -- Dekorations-Animationen
-    if mods.animations then
+    -- Dekorations-Animationen: jeder Effekt einzeln abschaltbar. Abgeschaltete
+    -- Effekte setzen die Deko in die Ruhelage zurück (nicht mitten in der Bewegung stehen lassen)
+    do
+        local anim = mods.animations
+        local fxRot, fxBob = anim and st("fxRotate"), anim and st("fxBob")
+        local fxPulse, fxFlick = anim and st("fxPulse"), anim and st("fxFlicker")
         local DS, kx = self.decorS or S, self.decorKX or 1
         for _, a in ipairs(self.activeDecor) do
             local d, t = a.def, a.tex
-            if d.rotate then RotTexCoord(t, (now * d.rotate) % TWO_PI) end
+            if d.rotate then RotTexCoord(t, fxRot and (now * d.rotate) % TWO_PI or 0) end
             if d.bob then
-                local off = sin(now * (d.bobSpeed or 1) * math.pi) * d.bob * DS
+                local off = fxBob and sin(now * (d.bobSpeed or 1) * math.pi) * d.bob * DS or 0
                 t:ClearAllPoints()
                 t:SetPoint("CENTER", self.frame, "CENTER", (d.x or 0) * DS * kx, (d.y or 0) * DS + off)
             end
             local alpha = d.alpha or 1
-            if d.pulse then
+            if d.pulse and fxPulse then
                 alpha = alpha * (1 - d.pulse * 0.5 + d.pulse * 0.5 * sin(now * (d.pulseSpeed or 1) * math.pi))
             end
-            if d.flicker then
+            if d.flicker and fxFlick then
                 alpha = alpha * (0.5 + 0.5 * math.abs(sin(now * 13 + a.phase) * sin(now * 7.3)))
             end
             t:SetAlpha(max(0, min(1, alpha)))

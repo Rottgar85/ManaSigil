@@ -343,6 +343,20 @@ do
     T:Reset()
 end
 
+-- Visuelle Effekte einzeln abschaltbar
+do
+    local D, st = ns.Display, ns.db.style
+    st.fxTickFlash = false; D:OnTick(); assert(D.flashAlpha == 0, "kein Aufblitzen, wenn aus")
+    st.fxTickFlash = true;  D:OnTick(); assert(D.flashAlpha > 0, "Aufblitzen, wenn an")
+    for _, k in ipairs({ "fxRotate", "fxBob", "fxPulse", "fxFlicker", "fxSparkPulse", "fxRimPulse" }) do st[k] = false end
+    for _, th in ipairs({ "angel", "storm" }) do
+        if ns.themes[th] then SlashCmdList.MANASIGIL("theme " .. th) end
+        for _, m in ipairs({ "ring", "bar" }) do SlashCmdList.MANASIGIL("mode " .. m); D:Update(now) end
+    end
+    for _, k in ipairs({ "fxRotate", "fxBob", "fxPulse", "fxFlicker", "fxSparkPulse", "fxRimPulse" }) do st[k] = nil end
+    assert(ns.L.EFFECTS.fxRimPulse and ns.L.TIP_EFFECTS.fxTickFlash, "Effekt-Texte übersetzt")
+end
+
 -- Übersetzung: alle Schlüssel der englischen Tabelle müssen auch in der aktiven Sprache existieren
 print("Sprache", GetLocale(), "Thema angel =", ns.themes.angel.name, "| Symbol skull =", ns.shapeNames.skull)
 assert(ns.L.H_THEME ~= "H_THEME" and ns.L.COLORS.ring and ns.L.MODULES.rim, "Übersetzung fehlt")

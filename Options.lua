@@ -396,6 +396,26 @@ function O:Build()
     sub:SetWidth(600); sub:SetJustifyH("LEFT")
     y = y - 64
 
+    -- Anordnung (Sandbox) -----------------------------------------------------
+    Header(c, L.H_SANDBOX, y); y = y - 34
+    -- ein Knopf: Bearbeitungsmodus an / Anordnung speichern
+    local editBtn = Button(c, L.EDIT_START, 20, y + 2, 260, function() ns.Sandbox:ToggleEditing() end)
+    editBtn:SetScript("OnEnter", function(s)
+        GameTooltip:SetOwner(s, "ANCHOR_RIGHT")
+        GameTooltip:AddLine(s:GetText(), 1, 0.82, 0)
+        GameTooltip:AddLine(L.TIP_SANDBOX, 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+    editBtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    O.widgets[#O.widgets + 1] = { Refresh = function()
+        editBtn:SetText(ns.Sandbox.editing and L.EDIT_SAVE or L.EDIT_START)
+    end }
+    Button(c, L.O_SANDBOX_RESET, 320, y + 2, 200, function() ns.Sandbox:ResetAll(); O:RefreshWidgets() end)
+    y = y - 28
+    local hint = Label(c, L.SANDBOX_HINT, 20, y, "GameFontDisableSmall")
+    hint:SetWidth(600); hint:SetJustifyH("LEFT")
+    y = y - 40
+
     -- Darstellung -----------------------------------------------------------
     Header(c, L.H_DISPLAY, y); y = y - 34
     Cycler(c, L.O_MODE, 20, y, List("ring", "pie", "bar"), Lookup(L.MODES),
@@ -636,26 +656,6 @@ function O:Build()
             function(v) db().modules[key] = v end, nil, nil, 295)
     end
     y = y - math.ceil(#MODULE_ORDER / 2) * 28 - 14
-
-    -- Anordnung (Sandbox) -----------------------------------------------------
-    Header(c, L.H_SANDBOX, y); y = y - 34
-    -- ein Knopf: Bearbeitungsmodus an / Anordnung speichern
-    local editBtn = Button(c, L.EDIT_START, 20, y + 2, 260, function() ns.Sandbox:ToggleEditing() end)
-    editBtn:SetScript("OnEnter", function(s)
-        GameTooltip:SetOwner(s, "ANCHOR_RIGHT")
-        GameTooltip:AddLine(s:GetText(), 1, 0.82, 0)
-        GameTooltip:AddLine(L.TIP_SANDBOX, 1, 1, 1, true)
-        GameTooltip:Show()
-    end)
-    editBtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
-    O.widgets[#O.widgets + 1] = { Refresh = function()
-        editBtn:SetText(ns.Sandbox.editing and L.EDIT_SAVE or L.EDIT_START)
-    end }
-    Button(c, L.O_SANDBOX_RESET, 320, y + 2, 200, function() ns.Sandbox:ResetAll(); O:RefreshWidgets() end)
-    y = y - 28
-    local hint = Label(c, L.SANDBOX_HINT, 20, y, "GameFontDisableSmall")
-    hint:SetWidth(600); hint:SetJustifyH("LEFT")
-    y = y - 40
 
     -- Visuelle Effekte ---------------------------------------------------------
     Header(c, L.H_EFFECTS, y); y = y - 34

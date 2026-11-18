@@ -367,6 +367,19 @@ do
         end
         SB:EndDrag()
         rawset(D.bigText, "GetRect", nil); rawset(D.bigText, "IsShown", nil)
+        -- unbrauchbare Ankerpunkte (fehlender Punkt, geheimer Abstand) werden ersetzt
+        local parent = {}
+        local r = { GetNumPoints = function() return 2 end, GetParent = function() return parent end,
+                    GetPoint = function(_, i)
+                        if i == 1 then return nil end
+                        return "TOP", nil, nil, sec(), 5
+                    end }
+        local pts = SB.CapturePoints(r)
+        assert(#pts == 1 and pts[1][1] == "TOP" and pts[1][2] == parent and pts[1][3] == "TOP"
+            and pts[1][4] == 0 and pts[1][5] == 5, "Ankerpunkte bereinigt")
+        r.GetNumPoints = function() return 0 end
+        pts = SB.CapturePoints(r)
+        assert(#pts == 2 and pts[1][1] == "TOPLEFT", "ohne Ankerpunkt: Eltern-Rahmen füllen")
     end
     C_CurveUtil, UnitPowerPercent = nil, nil; ns.db.textMode = "both"
     UnitPower, UnitPowerMax, GetManaRegen, issecretvalue = oldUP, oldUPM, oldRegen, nil

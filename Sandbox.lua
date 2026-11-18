@@ -132,15 +132,57 @@ SB.parts = {
       end },
 }
 
+-- Ankerpunkte sicher erfassen und setzen ---------------------------------------------
+local VALID_POINT = { TOPLEFT = true, TOP = true, TOPRIGHT = true, LEFT = true, CENTER = true,
+                      RIGHT = true, BOTTOMLEFT = true, BOTTOM = true, BOTTOMRIGHT = true }
+
+-- Liest die Ankerpunkte eines Teils. Unbrauchbare Angaben (fehlender Punkt, geheime oder
+-- fehlende Abstände) werden ersetzt; ohne brauchbare Punkte füllt das Teil seinen Eltern-Rahmen.
+local function CapturePoints(r)
+    local pts = {}
+    local ok, n = pcall(r.GetNumPoints, r)
+    n = (ok and ns.Readable(n)) and n or 0
+    for i = 1, n do
+        local okP, point, rel, relPoint, x, y = pcall(r.GetPoint, r, i)
+        if okP and type(point) == "string" and VALID_POINT[point:upper()] then
+            if type(relPoint) ~= "string" or not VALID_POINT[relPoint:upper()] then relPoint = point end
+            if type(rel) ~= "table" then rel = r:GetParent() end
+            if not (ns.Readable(x) and type(x) == "number") then x = 0 end
+            if not (ns.Readable(y) and type(y) == "number") then y = 0 end
+            pts[#pts + 1] = { point, rel, relPoint, x, y }
+        end
+    end
+    if #pts == 0 then
+        local parent = r:GetParent()
+        pts = { { "TOPLEFT", parent, "TOPLEFT", 0, 0 }, { "BOTTOMRIGHT", parent, "BOTTOMRIGHT", 0, 0 } }
+    end
+    return pts
+end
+
+SB.CapturePoints = CapturePoints
+
+-- Setzt die Ankerpunkte mit Verschiebung; ein Fehler betrifft nur dieses Teil
+local function SetPoints(r, pts, ox, oy, key)
+    r:ClearAllPoints()
+    for _, pt in ipairs(pts) do
+        local ok, err = pcall(r.SetPoint, r, pt[1], pt[2], pt[3], pt[4] + ox, pt[5] + oy)
+        if not ok then
+            if not SB.pointErrorShown then
+                SB.pointErrorShown = true
+                ns.ReportError("Sandbox " .. tostring(key), err)
+            end
+            pcall(r.SetPoint, r, "CENTER", r:GetParent(), "CENTER", ox, oy)
+            return
+        end
+    end
+end
+
 -- Ausgangslage merken und Verschiebung anwenden ---------------------------------------
 -- Vor dem Layout alles zurück auf die Ausgangslage (sonst addieren sich Verschiebungen)
 function SB:Restore()
     for _, p in ipairs(self.parts) do
         if p.base then
-            for i, r in ipairs(p.regs) do
-                r:ClearAllPoints()
-                for _, pt in ipairs(p.base[i]) do r:SetPoint(pt[1], pt[2], pt[3], pt[4], pt[5]) end
-            end
+            for i, r in ipairs(p.regs) do SetPoints(r, p.base[i], 0, 0, p.key) end
         end
         p.base, p.regs = nil, nil
     end
@@ -153,15 +195,9 @@ local function ApplyPart(p)
     end
     if not p.base then return end
     local ox, oy = SB:Offset(p.key)
-    for i, r in ipairs(p.regs) do
-        r:ClearAllPoints()
-        for _, pt in ipairs(p.base[i]) do r:SetPoint(pt[1], pt[2], pt[3], pt[4] + ox, pt[5] + oy) end
-    end
+    for i, r in ipairs(p.regs) do SetPoints(r, p.base[i], ox, oy, p.key) end
     -- Platzhalter des Textes folgt mit denselben Ankerpunkten
-    if p.probe then
-        p.probe:ClearAllPoints()
-        for _, pt in ipairs(p.base[1] or {}) do p.probe:SetPoint(pt[1], pt[2], pt[3], pt[4] + ox, pt[5] + oy) end
-    end
+    if p.probe and p.base[1] then SetPoints(p.probe, p.base[1], ox, oy, p.key) end
 end
 SB.ApplyPart = ApplyPart
 
@@ -173,9 +209,7 @@ function SB:Apply()
             p.regs = p.regions()
             p.base = {}
             for i, r in ipairs(p.regs) do
-                local pts = {}
-                for n = 1, (r:GetNumPoints() or 0) do pts[n] = { r:GetPoint(n) } end
-                p.base[i] = pts
+                p.base[i] = CapturePoints(r)
             end
             if p.text then
                 if not p.probe then
@@ -185,8 +219,7 @@ function SB:Apply()
                 local _, size = p.regs[1]:GetFont()
                 size = (ns.Readable(size) and size) or 14
                 p.probe:SetSize(size * 3.2, size * 1.25)
-                p.probe:ClearAllPoints()
-                for _, pt in ipairs(p.base[1]) do p.probe:SetPoint(pt[1], pt[2], pt[3], pt[4], pt[5]) end
+                if p.base[1] then SetPoints(p.probe, p.base[1], 0, 0, p.key) end
             end
         end
         if p.shown() then

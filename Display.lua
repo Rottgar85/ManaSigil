@@ -667,6 +667,43 @@ function D:MP5Line(now)
 end
 
 -- Laufende Aktualisierung --------------------------------------------------------
+-- Farbverlauf: voll = "high" (grün), bei gradMidPct = "mid" (gelb), leer = "low" (rot)
+function D:GradientColor(frac)
+    local hr, hg, hb = ns.GetColor("high")
+    local mr, mg, mb = ns.GetColor("mid")
+    local lr, lg, lb = ns.GetColor("low")
+    local m = max(0.01, min(0.99, st("gradMidPct") / 100))
+    if frac >= m then
+        local t = min(1, (frac - m) / (1 - m))
+        return mr + (hr - mr) * t, mg + (hg - mg) * t, mb + (hb - mb) * t
+    end
+    local t = max(0, frac / m)
+    return lr + (mr - lr) * t, lg + (mg - lg) * t, lb + (mb - lb) * t
+end
+
+-- Wenig Mana? Nur mit lesbaren Werten (geheime Werte lassen sich nicht vergleichen)
+function D:IsLowMana(cur, frac, readable, margin)
+    if not readable or not st("warnEnabled") then return false end
+    if st("warnCombatOnly") and not (UnitAffectingCombat and UnitAffectingCombat("player")) then return false end
+    local v = st("warnValue") + (margin or 0)
+    if st("warnUnit") == "mana" then return cur <= v end
+    return frac * 100 <= v
+end
+
+-- Warnton beim Unterschreiten der Schwelle; erneut erst, wenn das Mana wieder etwas darüber lag
+function D:UpdateWarning(now, low, cur, frac, readable)
+    if low then
+        local rep = st("warnRepeat") or 0
+        if self.warnArmed ~= false or (rep > 0 and now - (self.warnLast or 0) >= rep) then
+            self.warnArmed = false
+            self.warnLast = now
+            if st("warnSound") ~= "off" then ns.PlayWarnSound(st("warnSound")) end
+        end
+    elseif not self:IsLowMana(cur, frac, readable, st("warnUnit") == "mana" and 50 or 2) then
+        self.warnArmed = true
+    end
+end
+
 function D:Update(now)
     local db, mods, T = ns.db, ns.db.modules, ns.Tracker
     local S = self.S or db.size
@@ -686,6 +723,9 @@ function D:Update(now)
         if frac > 1 then frac = 1 end
     end
     local r, g, b = ns.GetColor("ring")
+    local low = self:IsLowMana(cur, frac, readable)
+    self:UpdateWarning(now, low, cur, frac, readable)
+    if readable and st("gradientRing") then r, g, b = self:GradientColor(frac) end
     local showSpark = mods.spark and mods.ring and readable and frac > 0 and frac < 1
 
     if mode == "bar" then
@@ -816,9 +856,31 @@ function D:Update(now)
             if not pcall(self.bigText.SetText, self.bigText, cur) then self.bigText:SetText("") end
             self.valText:SetText("")
         end
+        -- Textfarbe: fest oder Verlauf; bei Warnung rot
+        local tr, tg, tb
+        if readable and low then
+            tr, tg, tb = ns.GetColor("low")
+        elseif readable and st("textColorMode") == "gradient" then
+            tr, tg, tb = self:GradientColor(frac)
+        else
+            tr, tg, tb = ns.GetColor("text")
+        end
+        self.bigText:SetTextColor(tr, tg, tb)
+        self.valText:SetTextColor(tr * 0.85, tg * 0.85, tb * 0.85)
         self.bigText:Show(); self.valText:SetShown(mode ~= "bar")
     else
         self.bigText:Hide(); self.valText:Hide()
+    end
+
+    -- Blinken bei wenig Mana
+    local blink = low and st("warnBlink") or "off"
+    local ba = (blink ~= "off") and (0.2 + 0.8 * math.abs(sin(now * 5))) or 1
+    self.bigText:SetAlpha(blink == "text" and ba or 1)
+    self.valText:SetAlpha(blink == "text" and ba or 1)
+    if blink == "all" then
+        self.frame:SetAlpha(db.alpha * ba); self.blinkAll = true
+    elseif self.blinkAll then
+        self.frame:SetAlpha(db.alpha); self.blinkAll = nil
     end
     self.infoText:SetText(info)
     self.infoText:SetTextColor(ir, ig, ib)

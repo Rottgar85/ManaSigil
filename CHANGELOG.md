@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.3.0 – 2026-11-18
+
+- **Color gradient for the numbers:** green when mana is full, yellow in the middle, red when low (or a fixed color). The point where it is yellow is adjustable, and the three colors can be changed
+- Optional: the ring, pie or bar itself uses the gradient too
+- **Low mana warning** at a threshold you type in – in percent or in mana points
+  - numbers turn red and blink (or the whole display blinks, or no blinking)
+  - warning sound: raid warning, ready check, alarm clock, whisper or map ping – plays once, or repeats every x seconds
+  - optional: only in combat
+
 ## 1.2.1 – 2026-11-18
 
 - **New directions** for ring and pie: left to right and right to left (in addition to clockwise, counter-clockwise, bottom to top, top to bottom)

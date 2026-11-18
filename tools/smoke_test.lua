@@ -206,6 +206,39 @@ SlashCmdList.MANASIGIL("mode ring"); upd(nil, 1); issecretvalue = nil
 SlashCmdList.MANASIGIL("debug")
 ns.Options:RefreshWidgets()
 
+-- Farbverlauf & Warnung bei wenig Mana
+do
+    local plays = 0
+    PlaySound = function() plays = plays + 1 end
+    local D = ns.Display
+    st.warnEnabled, st.warnUnit, st.warnValue, st.warnSound, st.warnRepeat, st.warnBlink = true, "percent", 20, "raid", 0, "all"
+    st.textColorMode = "gradient"
+    local r, g = D:GradientColor(1); assert(g > r, "voll = grün")
+    r, g = D:GradientColor(0); assert(r > g, "leer = rot")
+    r, g = D:GradientColor(0.5); assert(r > 0.9 and g > 0.8, "Mitte = gelb")
+    mana = 900; ev(nil, "UNIT_POWER_UPDATE", "player", "MANA"); now = now + 0.1; upd(nil, 1)
+    assert(plays == 0, "kein Ton bei 90 %")
+    mana = 150; ev(nil, "UNIT_POWER_UPDATE", "player", "MANA")
+    for _ = 1, 5 do now = now + 0.1; upd(nil, 1) end
+    assert(plays == 1, "Ton genau einmal beim Unterschreiten")
+    assert(D.blinkAll, "Anzeige blinkt")
+    mana = 210; ev(nil, "UNIT_POWER_UPDATE", "player", "MANA"); now = now + 0.1; upd(nil, 1)
+    mana = 150; ev(nil, "UNIT_POWER_UPDATE", "player", "MANA"); now = now + 0.1; upd(nil, 1)
+    assert(plays == 1, "kein neuer Ton beim Pendeln knapp über der Schwelle")
+    mana = 500; ev(nil, "UNIT_POWER_UPDATE", "player", "MANA"); now = now + 0.1; upd(nil, 1)
+    assert(not D.blinkAll, "Blinken endet")
+    mana = 100; ev(nil, "UNIT_POWER_UPDATE", "player", "MANA"); now = now + 0.1; upd(nil, 1)
+    assert(plays == 2, "nach Erholung wieder ein Ton")
+    st.warnRepeat = 3; now = now + 3.1; upd(nil, 1)
+    assert(plays == 3, "Wiederholung nach 3 s")
+    st.warnUnit, st.warnValue = "mana", 50; now = now + 0.1; upd(nil, 1)
+    assert(not D:IsLowMana(100, 0.1, true), "Schwelle in Manapunkten")
+    st.warnCombatOnly = true; st.warnUnit, st.warnValue = "percent", 20
+    assert(not D:IsLowMana(100, 0.1, true), "nur im Kampf")
+    st.warnCombatOnly = false; st.warnRepeat = 0
+    mana = 1000; ev(nil, "UNIT_POWER_UPDATE", "player", "MANA"); now = now + 0.1; upd(nil, 1)
+end
+
 -- Übersetzung: alle Schlüssel der englischen Tabelle müssen auch in der aktiven Sprache existieren
 print("Sprache", GetLocale(), "Thema angel =", ns.themes.angel.name, "| Symbol skull =", ns.shapeNames.skull)
 assert(ns.L.H_THEME ~= "H_THEME" and ns.L.COLORS.ring and ns.L.MODULES.rim, "Übersetzung fehlt")

@@ -75,6 +75,18 @@ ns.defaults = {
         textScale   = 1.0,
         decorScale  = 1.0,
         sparkSize   = 1.0,
+        -- Farbverlauf der Zahlen: fixed = feste Textfarbe, gradient = grün -> gelb -> rot
+        textColorMode = "gradient",
+        gradientRing  = false,   -- auch die Mana-Anzeige selbst einfärben
+        gradMidPct    = 50,      -- bei diesem Füllstand (%) ist die Farbe gelb
+        -- Warnung bei wenig Mana
+        warnEnabled   = true,
+        warnUnit      = "percent", -- percent | mana
+        warnValue     = 20,        -- Schwelle (in % oder Mana-Punkten)
+        warnBlink     = "text",    -- off | text | all
+        warnSound     = "raid",    -- off oder ein Schlüssel aus ns.warnSounds
+        warnRepeat    = 0,         -- Ton alle x Sekunden wiederholen (0 = nur einmal)
+        warnCombatOnly = false,    -- nur im Kampf warnen
     },
     colors = {},            -- eigene Farben (siehe ns.colorKeys)
 }
@@ -131,7 +143,7 @@ ns.roundShapes = { dot = true, solid = true, circle = true }
 
 -- Einstellbare Farben (Reihenfolge = Optionsmenü)
 ns.colorKeys = {}
-for _, k in ipairs({ "ring", "empty", "fsr", "tick", "bg", "rim", "text", "spark", "decor" }) do
+for _, k in ipairs({ "ring", "empty", "fsr", "tick", "bg", "rim", "text", "spark", "decor", "high", "mid", "low" }) do
     ns.colorKeys[#ns.colorKeys + 1] = { k, L.COLORS[k] }
 end
 
@@ -185,11 +197,31 @@ function ns.GetDecor()
 end
 
 -- Farbe: eigene Einstellung > Thema > abgeleitet > Klassik
+-- Farben des Verlaufs (gelten für alle Themen)
+local GRADIENT_COLORS = { high = { 0.25, 0.95, 0.35 }, mid = { 1.0, 0.85, 0.1 }, low = { 1.0, 0.15, 0.12 } }
+
+-- Warntöne: Schlüssel -> Sound-ID (SOUNDKIT, falls vorhanden)
+ns.warnSoundOrder = { "raid", "ready", "alarm", "whisper", "ping" }
+local function Kit(name, fallback) return (SOUNDKIT and SOUNDKIT[name]) or fallback end
+ns.warnSounds = {
+    raid    = Kit("RAID_WARNING", 8959),
+    ready   = Kit("READY_CHECK", 8960),
+    alarm   = Kit("ALARM_CLOCK_WARNING_3", 12889),
+    whisper = Kit("TELL_MESSAGE", 3081),
+    ping    = Kit("MAP_PING", 3175),
+}
+function ns.PlayWarnSound(key)
+    local id = ns.warnSounds[key or ""]
+    if id and PlaySound then pcall(PlaySound, id, "Master") end
+end
+
 function ns.GetColor(name)
     local c = ns.db.colors[name]
     if type(c) == "table" and c[1] then return c[1], c[2], c[3] end
     local t = ns.GetTheme().colors[name]
     if t then return t[1], t[2], t[3] end
+    local gc = GRADIENT_COLORS[name]
+    if gc then return gc[1], gc[2], gc[3] end
     if name == "empty" then
         local r, g, b = ns.GetColor("ring"); return r * 0.3, g * 0.3, b * 0.3
     elseif name == "rim" then

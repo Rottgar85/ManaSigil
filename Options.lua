@@ -92,6 +92,38 @@ local function Check(parent, text, x, y, get, set, tip, active, w)
     return holder
 end
 
+-- Zahleneingabe (Enter übernimmt, Esc verwirft)
+local function NumberInput(parent, text, x, y, get, set, unitFn, tip, active)
+    local row = Row(parent, x, y, text, tip, active)
+    local lbl = row:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+    lbl:SetPoint("LEFT", row, "LEFT", 0, 0)
+    lbl:SetText(text)
+    local eb = CreateFrame("EditBox", nil, row, "InputBoxTemplate")
+    eb:SetSize(80, 20)
+    eb:SetPoint("LEFT", row, "LEFT", LABEL_W + 10, 0)
+    eb:SetAutoFocus(false)
+    eb:SetNumeric(true)
+    eb:SetMaxLetters(6)
+    local unit = row:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    unit:SetPoint("LEFT", eb, "RIGHT", 8, 0)
+    local holder
+    local function Commit()
+        local v = tonumber(eb:GetText())
+        if v and v ~= get() then set(v); Changed() end
+        eb:SetText(tostring(get()))
+    end
+    eb:SetScript("OnEnterPressed", function(self) Commit(); self:ClearFocus() end)
+    eb:SetScript("OnEscapePressed", function(self) self:SetText(tostring(get())); self:ClearFocus() end)
+    eb:SetScript("OnEditFocusLost", Commit)
+    AddControl(row, eb)
+    holder = { Refresh = function()
+        if not eb:HasFocus() then eb:SetText(tostring(get())) end
+        unit:SetText(unitFn and unitFn() or "")
+    end }
+    O.widgets[#O.widgets + 1] = holder
+    return holder
+end
+
 -- Auswahl mit < > Pfeilen
 local function Cycler(parent, text, x, y, valuesFn, labelFn, get, set, tip, active)
     local row = Row(parent, x, y, text, tip, active)
@@ -495,6 +527,50 @@ function O:Build()
     y = y - 28
     Slider(c, L.O_SPARKSIZE, 20, y, 0.3, 3.0, 0.05, Times, SG("sparkSize"), SS("sparkSize"), L.TIP_SPARKSIZE,
         function() return db().modules.spark end)
+    y = y - 40
+
+    -- Farbverlauf & Warnung ---------------------------------------------------
+    Header(c, L.H_WARN, y); y = y - 34
+    Cycler(c, L.O_TEXTCOLOR, 20, y, List("gradient", "fixed"), Lookup(L.TEXTCOLOR_MODES),
+        SG("textColorMode"), SS("textColorMode"), L.TIP_TEXTCOLOR, textOn)
+    y = y - 30
+    Slider(c, L.O_GRAD_MID, 20, y, 10, 90, 5, "%d%%", SG("gradMidPct"), SS("gradMidPct"), L.TIP_GRAD_MID,
+        function() return style().textColorMode == "gradient" or style().gradientRing end)
+    y = y - 30
+    Check(c, L.O_GRAD_RING, 20, y, SG("gradientRing"), SS("gradientRing"), L.TIP_GRAD_RING,
+        function() return db().modules.ring end)
+    y = y - 32
+    Check(c, L.O_WARN, 20, y, SG("warnEnabled"), SS("warnEnabled"), L.TIP_WARN)
+    y = y - 30
+    local warnOn = function() return style().warnEnabled end
+    Cycler(c, L.O_WARN_UNIT, 20, y, List("percent", "mana"), Lookup(L.WARN_UNITS),
+        SG("warnUnit"),
+        function(v)
+            -- beim Wechsel einen sinnvollen Wert vorschlagen
+            if v ~= style().warnUnit then style().warnValue = (v == "mana") and 500 or 20 end
+            style().warnUnit = v
+        end, L.TIP_WARN_UNIT, warnOn)
+    y = y - 30
+    NumberInput(c, L.O_WARN_VALUE, 20, y, SG("warnValue"),
+        function(v)
+            if style().warnUnit == "percent" then v = math.max(1, math.min(99, v)) else v = math.max(1, v) end
+            style().warnValue = v
+        end,
+        function() return style().warnUnit == "mana" and L.UNIT_MANA or "%" end, L.TIP_WARN_VALUE, warnOn)
+    y = y - 30
+    Cycler(c, L.O_WARN_BLINK, 20, y, List("text", "all", "off"), Lookup(L.BLINK_MODES),
+        SG("warnBlink"), SS("warnBlink"), L.TIP_WARN_BLINK, warnOn)
+    y = y - 30
+    local soundValues = { "off" }
+    for _, k in ipairs(ns.warnSoundOrder) do soundValues[#soundValues + 1] = k end
+    Cycler(c, L.O_WARN_SOUND, 20, y, function() return soundValues end, Lookup(L.SOUNDS),
+        SG("warnSound"), function(v) style().warnSound = v; ns.PlayWarnSound(v) end, L.TIP_WARN_SOUND, warnOn)
+    y = y - 30
+    Slider(c, L.O_WARN_REPEAT, 20, y, 0, 30, 1, function(v) return v == 0 and L.ONCE or string.format("%d s", v) end,
+        SG("warnRepeat"), SS("warnRepeat"), L.TIP_WARN_REPEAT,
+        function() return style().warnEnabled and style().warnSound ~= "off" end)
+    y = y - 32
+    Check(c, L.O_WARN_COMBAT, 20, y, SG("warnCombatOnly"), SS("warnCombatOnly"), L.TIP_WARN_COMBAT, warnOn)
     y = y - 40
 
     -- Farben -----------------------------------------------------------------

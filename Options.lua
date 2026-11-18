@@ -639,8 +639,18 @@ function O:Build()
 
     -- Anordnung (Sandbox) -----------------------------------------------------
     Header(c, L.H_SANDBOX, y); y = y - 34
-    Check(c, L.O_SANDBOX, 20, y, function() return db().sandbox ~= false end,
-        function(v) db().sandbox = v; ns.Sandbox:UpdateVisibility() end, L.TIP_SANDBOX, nil, 295)
+    -- ein Knopf: Bearbeitungsmodus an / Anordnung speichern
+    local editBtn = Button(c, L.EDIT_START, 20, y + 2, 260, function() ns.Sandbox:ToggleEditing() end)
+    editBtn:SetScript("OnEnter", function(s)
+        GameTooltip:SetOwner(s, "ANCHOR_RIGHT")
+        GameTooltip:AddLine(s:GetText(), 1, 0.82, 0)
+        GameTooltip:AddLine(L.TIP_SANDBOX, 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+    editBtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    O.widgets[#O.widgets + 1] = { Refresh = function()
+        editBtn:SetText(ns.Sandbox.editing and L.EDIT_SAVE or L.EDIT_START)
+    end }
     Button(c, L.O_SANDBOX_RESET, 320, y + 2, 200, function() ns.Sandbox:ResetAll(); O:RefreshWidgets() end)
     y = y - 28
     local hint = Label(c, L.SANDBOX_HINT, 20, y, "GameFontDisableSmall")

@@ -466,9 +466,13 @@ do
     rawset(SB.frame, "IsShown", function() return shown end)
     rawset(D.frame, "IsShown", function() return true end)
     ns.Options.IsOpen = function() return true end
-    D:UpdateVisibility(); assert(shown == true, "Sandbox bei offenen Einstellungen sichtbar")
+    D:UpdateVisibility(); assert(shown == false, "Einstellungen allein zeigen keine Sandbox")
     ns.Options.IsOpen = function() return false end
-    D:UpdateVisibility(); assert(shown == false, "Sandbox ohne Einstellungen versteckt")
+    SlashCmdList.MANASIGIL("edit")
+    assert(SB.editing and shown == true, "Bearbeitungsmodus zeigt die Sandbox")
+    assert(D:ShouldShow(), "Anzeige im Bearbeitungsmodus sichtbar")
+    SB:SetEditing(false)
+    assert(not SB.editing and shown == false, "Speichern beendet den Bearbeitungsmodus")
     ns.Options.IsOpen = oldOpen; rawset(D.frame, "IsShown", oldIsShown)
 end
 

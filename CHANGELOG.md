@@ -2,6 +2,7 @@
 
 ## 1.5.1 – 2026-11-18
 
+- **Edit mode with its own button:** "Edit arrangement" in the options (or `/msig edit`) shows the green sandbox. Pressing the button again – or "Save arrangement" above the green area – saves the arrangement and ends the edit mode. The sandbox no longer appears just by opening the options
 - **Fixed:** Lua error in the sandbox (`Sandbox.lua:38 … secret number value`) every frame when the game hides the mana values: the size of a text showing a hidden value is hidden too. Such texts are now measured with an invisible placeholder of the same font size
 - Sandbox errors can no longer stop the display and are reported only once
 - Fixed: numbers, timer and MP5 could not be moved in the sandbox (`attempt to index local 'point' (a secret string value)`, `Frame:SetPoint(): Usage`). When a text shows a hidden mana value, the game hides even its anchor points. The display now keeps track of its own anchor points instead of asking the game

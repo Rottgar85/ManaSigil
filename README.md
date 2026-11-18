@@ -22,7 +22,7 @@
 - **MP5 display** – your mana regeneration per 5 seconds, normal and during the five-second rule
 - **Color gradient & low mana warning** – numbers go green → yellow → red; below a threshold you choose (percent or mana) they blink and a warning sound plays
 - **Bar colors** – the mana bar and the timer bar each get their own fixed color or their own color gradient, independent of the numbers
-- **Green sandbox** – arrange numbers, timer and decoration with the mouse while the options are open
+- **Edit mode with a green sandbox** – press "Edit arrangement" (or `/msig edit`), drag every part with the mouse, press "Save arrangement"
 - **Visual effects** – pulsing, floating, rotating, flickering and the tick flash can each be switched on and off
 - **Mana ring (outer)** – current mana as a glowing ring with a spark at the fill edge
 - **Five-second rule (inner ring)** – drains over 5 seconds after you spend mana, with a countdown

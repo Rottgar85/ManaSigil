@@ -306,6 +306,18 @@ function SB:Build()
     bar:SetScript("OnEnter", function(s) ShowTip(s, L.SB_WHOLE, L.SB_WHOLE_TIP) end)
     bar:SetScript("OnLeave", function() GameTooltip:Hide() end)
     self.titleBar = bar
+    title:ClearAllPoints()
+    title:SetPoint("LEFT", bar, "LEFT", 6, 0)
+
+    local save = CreateFrame("Button", nil, bar, "UIPanelButtonTemplate")
+    save:SetSize(140, 20)
+    save:SetPoint("BOTTOMRIGHT", bar, "TOPRIGHT", 0, 2)
+    save:SetText(L.EDIT_SAVE)
+    save:SetFrameLevel(bar:GetFrameLevel() + 5)
+    save:SetScript("OnClick", function() SB:SetEditing(false) end)
+    save:SetScript("OnEnter", function(s) ShowTip(s, L.EDIT_SAVE, L.EDIT_SAVE_TIP) end)
+    save:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    self.saveButton = save
 
     self.handles = {}
     -- Ebene der Griffe: Texte über Timer über Dekoration, damit ein Klick auf eine
@@ -461,7 +473,7 @@ end
 -- Sichtbar, solange die Einstellungen offen sind und die Anzeige zu sehen ist
 function SB:UpdateVisibility()
     if not self.frame then return end
-    local on = ns.db.sandbox ~= false and ns.Options and ns.Options:IsOpen() and D().frame:IsShown()
+    local on = self.editing and D().frame:IsShown()
     on = on and true or false
     if on == (self.frame:IsShown() and true or false) then return end
     self.frame:SetShown(on)
@@ -520,6 +532,22 @@ end
 
 function SB:IsActive()
     return self.frame ~= nil and self.frame:IsShown() == true
+end
+
+-- Bearbeitungsmodus: an = Sandbox zeigen, aus = Anordnung speichern ------------------
+function SB:SetEditing(on)
+    on = on and true or false
+    if on == (self.editing or false) then return end
+    if not on then self:EndDrag() end
+    self.editing = on
+    D():UpdateVisibility()
+    if not on then D():Refresh() end
+    ns.Print(on and L.EDIT_ON or L.EDIT_SAVED)
+    if ns.Options and ns.Options.RefreshWidgets then ns.Options:RefreshWidgets() end
+end
+
+function SB:ToggleEditing()
+    self:SetEditing(not self.editing)
 end
 
 -- Alle Verschiebungen des aktuellen Modus zurücksetzen

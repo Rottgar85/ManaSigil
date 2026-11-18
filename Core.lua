@@ -102,7 +102,6 @@ ns.defaults = {
     },
     colors = {},            -- eigene Farben (siehe ns.colorKeys)
     layout = {},            -- eigene Anordnung je Modus: layout[mode][teil] = { x, y } (Sandbox)
-    sandbox = true,         -- grüne Sandbox zeigen, solange die Einstellungen offen sind
 }
 
 local function CopyDefaults(src, dst)
@@ -469,6 +468,8 @@ SlashCmdList.MANASIGIL = function(msg)
         else
             ListThemes()
         end
+    elseif cmd == "edit" then
+        ns.Sandbox:ToggleEditing()
     elseif cmd == "test" then
         ns.Tracker:StartFSR(); ns.Display:Show(true); ns.Print(L.TEST_STARTED)
     elseif cmd == "debug" then

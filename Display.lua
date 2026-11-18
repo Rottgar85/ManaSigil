@@ -668,6 +668,7 @@ function D:ShouldShow()
     if not db.enabled then return false end                    -- per Minimap-Button ausgeschaltet
     if self.forceUntil and GetTime() < self.forceUntil then return true end
     if ns.Options and ns.Options:IsOpen() then return true end -- Vorschau beim Gestalten
+    if ns.Sandbox and ns.Sandbox.editing then return true end  -- Bearbeitungsmodus
     if not db.locked then return true end                      -- entsperrt: immer zeigen (zum Verschieben)
     local cur, maxMana = ns.Tracker:GetMana()
     if db.onlyManaClasses and ns.Readable(maxMana) and maxMana <= 0 then return false end

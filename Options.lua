@@ -23,8 +23,10 @@ local function InnerSymbols() return IsCircle() and style().innerStyle == "symbo
 local function TimerOn() return db().modules.fsr or db().modules.ticks end
 
 local function Changed()
-    ns.Display:Refresh()
-    O:RefreshWidgets()   -- Beschriftungen (z. B. Laufrichtung) hängen vom Modus ab
+    local ok, err = pcall(ns.Display.Refresh, ns.Display)
+    if not ok then ns.ReportError("Refresh", err) end
+    ok, err = pcall(O.RefreshWidgets, O)
+    if not ok then ns.ReportError("Options", err) end   -- Beschriftungen (z. B. Laufrichtung) hängen vom Modus ab
 end
 
 -- Tooltip ---------------------------------------------------------------------------

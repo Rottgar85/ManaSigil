@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.3.3 – 2026-11-18
+
+- `/msig debug` now shows the installed version, the current text/color/warning settings, a self-test of every step of the hidden-mana display (percent, color, warning) and the last errors
+- Errors when changing an option are reported in the chat instead of interrupting the options panel
+
 ## 1.3.2 – 2026-11-18
 
 - Tick detection with hidden mana values now only uses the server mana updates (`UNIT_POWER_UPDATE`); the almost continuous `UNIT_POWER_FREQUENT` events no longer count as ticks

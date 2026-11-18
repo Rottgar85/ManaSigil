@@ -728,6 +728,45 @@ local function Eval(curve)
     if ok then return v end
 end
 
+-- Für /msig debug: prüft jeden Schritt der Anzeige bei geheimen Werten einzeln
+function D:SelfTest()
+    local out = {}
+    local function add(name, ok, err)
+        out[#out + 1] = name .. "=" .. (ok and "ok" or ("|cffff6060FAIL|r" .. (err and (" (" .. tostring(err):sub(1, 80) .. ")") or "")))
+    end
+    add("api", C_CurveUtil and C_CurveUtil.CreateCurve and Enum and Enum.LuaCurveType and UnitPowerPercent)
+    add("curves", self.cv ~= nil)
+    local cv = self.cv
+    if cv then
+        local ok, p = pcall(UnitPowerPercent, "player", ns.MANA, false, cv.pct)
+        add("pct", ok and p ~= nil, not ok and p)
+        if ok and p ~= nil and self.bigText then
+            local fok, ferr = pcall(self.bigText.SetFormattedText, self.bigText, "%.0f%%", p)
+            add("format", fok, ferr)
+        end
+        local okR, r = pcall(UnitPowerPercent, "player", ns.MANA, false, cv.r)
+        if okR and r ~= nil and self.bigText then
+            local cok, cerr = pcall(self.bigText.SetTextColor, self.bigText, r, r, r)
+            add("color", cok, cerr)
+        else
+            add("colorcurve", false, r)
+        end
+        if cv.low then
+            local lok, l = pcall(UnitPowerPercent, "player", ns.MANA, false, cv.low)
+            add("low", lok and l ~= nil, not lok and l)
+            if lok and l ~= nil and self.warnBig then
+                local aok, aerr = pcall(self.warnBig.SetAlpha, self.warnBig, l)
+                add("alpha", aok, aerr)
+            end
+        else
+            add("lowcurve", false)
+        end
+    end
+    out[#out + 1] = "warnShown=" .. ((self.warnHolder and self.warnHolder:IsShown()) and "yes" or "no")
+    out[#out + 1] = "noSecretColor=" .. (self.noSecretColor and "yes" or "no")
+    return table.concat(out, " ")
+end
+
 -- Text bei geheimen Werten; schreibt in die normale und in die rote Warn-Zahl
 function D:SecretText(cur, tm, mode)
     local p = self.cv and Eval(self.cv.pct)

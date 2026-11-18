@@ -284,6 +284,9 @@ function ns.ReportError(where, err)
     local msg = "ManaSigil " .. (C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata(addonName, "Version") or "")
         .. " [" .. where .. "]: " .. tostring(err)
     ns.Print("|cffff6060" .. msg .. "|r")
+    ns.errors = ns.errors or {}
+    table.insert(ns.errors, 1, msg)
+    ns.errors[4] = nil
     local handler = geterrorhandler and geterrorhandler()
     if handler then pcall(handler, msg) end
 end
@@ -386,6 +389,14 @@ local function Debug()
         ns.Print(string.format("events (%.0fs): update=%d frequent=%d  update gaps: %s",
             GetTime() - s.start, s.update, s.frequent, #ug > 0 and table.concat(ug, " ") or "-"))
     end
+    local st = ns.db.style
+    ns.Print(string.format("version=%s  text=%s  color=%s  warn=%s %s %s  combatOnly=%s",
+        C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata(addonName, "Version") or "?",
+        tostring(ns.db.textMode), tostring(ns.GetStyle("textColorMode")), tostring(ns.GetStyle("warnEnabled")),
+        tostring(ns.GetStyle("warnValue")), tostring(ns.GetStyle("warnUnit")), tostring(ns.GetStyle("warnCombatOnly"))))
+    ns.Print("selftest: " .. ns.Display:SelfTest())
+    for _, e in ipairs(ns.errors or {}) do ns.Print("|cffff6060error: " .. e .. "|r") end
+    if not ns.errors then ns.Print("errors: -") end
 end
 
 SLASH_MANASIGIL1 = "/manasigil"

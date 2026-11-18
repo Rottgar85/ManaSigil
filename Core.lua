@@ -101,6 +101,8 @@ ns.defaults = {
         warnCombatOnly = false,    -- nur im Kampf warnen
     },
     colors = {},            -- eigene Farben (siehe ns.colorKeys)
+    layout = {},            -- eigene Anordnung je Modus: layout[mode][teil] = { x, y } (Sandbox)
+    sandbox = true,         -- grüne Sandbox zeigen, solange die Einstellungen offen sind
 }
 
 local function CopyDefaults(src, dst)
@@ -338,6 +340,7 @@ function handlers.PLAYER_LOGIN()
     events:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player")
     Safe("Tracker", ns.Tracker.Init, ns.Tracker)
     Safe("Display", ns.Display.Build, ns.Display)
+    Safe("Sandbox", ns.Sandbox.Build, ns.Sandbox)
     Safe("Options", ns.Options.Build, ns.Options)
     Safe("Minimap", ns.Minimap.Build, ns.Minimap)
     Safe("Refresh", ns.Display.Refresh, ns.Display)

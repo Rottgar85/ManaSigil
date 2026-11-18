@@ -637,6 +637,16 @@ function O:Build()
     end
     y = y - math.ceil(#MODULE_ORDER / 2) * 28 - 14
 
+    -- Anordnung (Sandbox) -----------------------------------------------------
+    Header(c, L.H_SANDBOX, y); y = y - 34
+    Check(c, L.O_SANDBOX, 20, y, function() return db().sandbox ~= false end,
+        function(v) db().sandbox = v; ns.Sandbox:UpdateVisibility() end, L.TIP_SANDBOX, nil, 295)
+    Button(c, L.O_SANDBOX_RESET, 320, y + 2, 200, function() ns.Sandbox:ResetAll(); O:RefreshWidgets() end)
+    y = y - 28
+    local hint = Label(c, L.SANDBOX_HINT, 20, y, "GameFontDisableSmall")
+    hint:SetWidth(600); hint:SetJustifyH("LEFT")
+    y = y - 40
+
     -- Visuelle Effekte ---------------------------------------------------------
     Header(c, L.H_EFFECTS, y); y = y - 34
     local animOn = function() return db().modules.animations and db().modules.decor end

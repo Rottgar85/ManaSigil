@@ -496,6 +496,7 @@ function D:LayoutCircle(S, mode)
         end
         SetupRing(self.inner, st("innerStyle"), st("innerShape"), st("innerCount"), innerSym, innerR, rotate, st("innerDir"))
         extent = max(extent, innerR + innerSym * 0.5)
+        self.innerExtent = innerR + innerSym * 0.5
     else
         HideRing(self.inner)
     end
@@ -595,6 +596,9 @@ function D:ApplyDecor()
     -- im Balken-Modus rücken seitliche Teile mit der Balkenbreite nach außen
     local kx = (self.mode == "bar") and max(1, (self.W or S) / self.S) or 1
     self.decorS, self.decorKX = S, kx
+    local ox, oy = 0, 0
+    if ns.Sandbox then ox, oy = ns.Sandbox:Offset("decor") end
+    self.decorOX, self.decorOY = ox, oy
 
     for i, d in ipairs(list) do
         local t = self.decorTex[i]
@@ -611,7 +615,7 @@ function D:ApplyDecor()
         t:SetVertexColor(c[1], c[2], c[3])
         t:SetSize((d.w or 1) * S, (d.h or 1) * S)
         t:ClearAllPoints()
-        t:SetPoint("CENTER", self.frame, "CENTER", (d.x or 0) * S * kx, (d.y or 0) * S)
+        t:SetPoint("CENTER", self.frame, "CENTER", (d.x or 0) * S * kx + ox, (d.y or 0) * S + oy)
         t:SetAlpha(d.alpha or 1)
         t:Show()
         self.activeDecor[#self.activeDecor + 1] = { tex = t, def = d, phase = i * 0.7 }
@@ -621,9 +625,12 @@ end
 function D:Refresh()
     if not self.frame then return end
     self:BuildCurves()
+    local sb = ns.Sandbox
+    if sb then sb:Restore() end      -- eigene Anordnung erst nach dem Layout wieder anwenden
     self:Layout()
     self:ApplyColors()
     self:ApplyDecor()
+    if sb then sb:Apply() end
     self:UpdateVisibility()
     if ns.Minimap then ns.Minimap:Refresh() end   -- Icon-Farbe folgt dem Thema
     self:Update(GetTime())
@@ -649,6 +656,7 @@ end
 function D:UpdateVisibility()
     if not self.frame then return end
     self.frame:SetShown(self:ShouldShow())
+    if ns.Sandbox then ns.Sandbox:UpdateVisibility() end
 end
 
 function D:Show(force)
@@ -1092,7 +1100,8 @@ function D:Update(now)
             if d.bob then
                 local off = fxBob and sin(now * (d.bobSpeed or 1) * math.pi) * d.bob * DS or 0
                 t:ClearAllPoints()
-                t:SetPoint("CENTER", self.frame, "CENTER", (d.x or 0) * DS * kx, (d.y or 0) * DS + off)
+                t:SetPoint("CENTER", self.frame, "CENTER", (d.x or 0) * DS * kx + (self.decorOX or 0),
+                    (d.y or 0) * DS + off + (self.decorOY or 0))
             end
             local alpha = d.alpha or 1
             if d.pulse and fxPulse then

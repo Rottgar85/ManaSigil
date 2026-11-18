@@ -54,7 +54,7 @@ GetCursorPosition = function() return 400, 600 end
 GetManaRegen = function() return 12, 3 end   -- Mana pro Sekunde: normal, beim Zaubern
 -- Sprache über Umgebungsvariable LOCALE testen (Standard: deDE)
 GetLocale = function() return os.getenv("LOCALE") or "deDE" end
-for _, f in ipairs({ "Locale", "Core", "Themes", "Tracker", "Display", "Options", "Minimap" }) do
+for _, f in ipairs({ "Locale", "Core", "Themes", "Tracker", "Display", "Sandbox", "Options", "Minimap" }) do
     assert(loadfile(dir .. "/" .. f .. ".lua"))("ManaSigil", ns)
 end
 -- im Test jeden abgefangenen Fehler sofort sichtbar machen
@@ -369,6 +369,44 @@ do
     end
     for _, k in ipairs({ "fxRotate", "fxBob", "fxPulse", "fxFlicker", "fxSparkPulse", "fxRimPulse" }) do st[k] = nil end
     assert(ns.L.EFFECTS.fxRimPulse and ns.L.TIP_EFFECTS.fxTickFlash, "Effekt-Texte übersetzt")
+end
+
+-- Sandbox: Verschiebung je Modus, Rückkehr ohne Aufaddieren, nie über den grünen Rand
+do
+    local SB, D = ns.Sandbox, ns.Display
+    assert(SB.frame, "Sandbox gebaut")
+    SlashCmdList.MANASIGIL("mode ring")
+    ns.db.layout.ring = { decor = { 12, -5 } }
+    D:Refresh(); D:Refresh()                       -- zweimal: Verschiebung darf sich nicht addieren
+    assert(D.decorOX == 12 and D.decorOY == -5, "Deko-Verschiebung angewendet")
+    SlashCmdList.MANASIGIL("mode bar")
+    assert(D.decorOX == 0, "Anordnung je Modus getrennt")
+    -- Begrenzung: Sandbox 0..100 x 0..50, Teil 10x10 bei (offset)
+    local part = { key = "testpart", decor = false, base = {}, regs = {} }
+    part.rect = function() local x, y = SB:Offset("testpart"); return 20 + x, 20 + y, 30 + x, 30 + y end
+    local oldRect = SB.frame.GetRect
+    SB.frame.GetRect = function() return 0, 0, 100, 50 end
+    SB.MoveClamped(part, 500, -500)
+    local x, y = SB:Offset("testpart")
+    assert(x == 70 and y == -20, "am grünen Rand angehalten: " .. x .. "," .. y)
+    SB.MoveClamped(part, 5, 5)
+    x, y = SB:Offset("testpart"); assert(x == 5 and y == 5, "innerhalb frei beweglich")
+    SB.frame.GetRect = oldRect
+    ns.db.layout.bar = nil
+    SB:ResetAll(); SlashCmdList.MANASIGIL("mode ring"); SB:ResetAll()
+    assert(not ns.db.layout.ring, "Anordnung zurückgesetzt")
+    assert(ns.L.SB_PARTS.decor and ns.L.SB_TITLE, "Sandbox-Texte übersetzt")
+    -- Einstellungen offen: Sandbox erscheint (ohne Endlosschleife), geschlossen: verschwindet
+    local shown = false
+    local oldOpen, oldIsShown = ns.Options.IsOpen, D.frame.IsShown
+    rawset(SB.frame, "SetShown", function(_, v) shown = v end)
+    rawset(SB.frame, "IsShown", function() return shown end)
+    rawset(D.frame, "IsShown", function() return true end)
+    ns.Options.IsOpen = function() return true end
+    D:UpdateVisibility(); assert(shown == true, "Sandbox bei offenen Einstellungen sichtbar")
+    ns.Options.IsOpen = function() return false end
+    D:UpdateVisibility(); assert(shown == false, "Sandbox ohne Einstellungen versteckt")
+    ns.Options.IsOpen = oldOpen; rawset(D.frame, "IsShown", oldIsShown)
 end
 
 -- Übersetzung: alle Schlüssel der englischen Tabelle müssen auch in der aktiven Sprache existieren

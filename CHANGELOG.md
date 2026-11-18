@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.5.0 – 2026-11-18
+
+- **Green sandbox for your own arrangement:** while the options window is open, a green area appears around the display
+  - drag the numbers, second number, timer text, MP5 line, timer bar (or inner ring) and the decoration with the mouse – each part is labeled
+  - nothing can be moved past the green border
+  - drag the title bar to move the whole display
+  - right-click a part to put it back; "Reset arrangement" in the options resets everything
+  - the arrangement is saved separately for ring, pie and bar; the sandbox can be switched off
+
 ## 1.4.1 – 2026-11-18
 
 - **Fixed:** mounting, melee abilities and other spells without mana cost no longer start the five-second rule when the game hides the mana values. Only spells that cost mana count

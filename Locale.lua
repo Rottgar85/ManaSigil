@@ -79,7 +79,7 @@ local enUS = {
     SB_WHOLE = "Whole display", SB_WHOLE_TIP = "Drag: move the whole display.\nRight-click: back to the center.",
     SB_PART_TIP = "Drag: move this part (only inside the green area). Everything else fades while you drag.\nRight-click: back to its place.",
     SB_PARTS = { bigText = "Numbers", valText = "Second number", infoText = "Timer text", mp5Text = "MP5",
-                 timer = "Timer bar", decor = "Decoration" },
+                 timer = "Timer", decor = "Decoration", mana = "Mana display", background = "Background", rim = "Border" },
     EFFECTS = {
         fxRotate = "Decoration rotates", fxBob = "Wings float", fxPulse = "Glow pulses",
         fxFlicker = "Lightning flickers", fxSparkPulse = "Spark pulses", fxRimPulse = "Border pulses (5-sec rule)",
@@ -302,7 +302,7 @@ local deDE = {
     SB_WHOLE = "Ganze Anzeige", SB_WHOLE_TIP = "Ziehen: ganze Anzeige verschieben.\nRechtsklick: zurück zur Mitte.",
     SB_PART_TIP = "Ziehen: diesen Teil verschieben (nur innerhalb des grünen Bereichs). Alles andere rückt dabei in den Hintergrund.\nRechtsklick: zurück an seinen Platz.",
     SB_PARTS = { bigText = "Zahlen", valText = "Zweite Zahl", infoText = "Timer-Text", mp5Text = "MP5",
-                 timer = "Timer-Leiste", decor = "Dekoration" },
+                 timer = "Timer", decor = "Dekoration", mana = "Mana-Anzeige", background = "Hintergrund", rim = "Rand" },
     EFFECTS = {
         fxRotate = "Deko dreht sich", fxBob = "Flügel schweben", fxPulse = "Schein pulsiert",
         fxFlicker = "Blitze flackern", fxSparkPulse = "Funke pulsiert", fxRimPulse = "Rand pulsiert (5-Sek.-Regel)",

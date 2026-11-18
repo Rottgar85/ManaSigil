@@ -361,8 +361,11 @@ do
         ns.db.modules.text = true
         D:Refresh()
         SB:OnUpdate()
-        SB.drag = { part = SB.parts[1], x = 0, y = 0, ox = 0, oy = 0 }
-        SB:OnUpdate(); SB.drag = nil
+        for _, pt in ipairs(SB.parts) do
+            SB.drag = { part = pt, x = 0, y = 0, ox = 0, oy = 0 }
+            SB:OnUpdate()
+        end
+        SB:EndDrag()
         rawset(D.bigText, "GetRect", nil); rawset(D.bigText, "IsShown", nil)
     end
     C_CurveUtil, UnitPowerPercent = nil, nil; ns.db.textMode = "both"
@@ -414,10 +417,18 @@ do
         local alpha = {}
         local function track(r) rawset(r, "SetAlpha", function(_, a) alpha[r] = a end) end
         track(D.bigText); track(D.mp5Text); track(D.outer.frame)
-        SB.drag = { part = SB.parts[1], x = 0, y = 0, ox = 0, oy = 0 }   -- Zahlen greifen
+        local numbers
+        for _, pt in ipairs(SB.parts) do if pt.key == "bigText" then numbers = pt end end
+        SB.drag = { part = numbers, x = 0, y = 0, ox = 0, oy = 0 }   -- Zahlen greifen
         SB:Dim()
         assert(alpha[D.bigText] == 1 and alpha[D.mp5Text] < 1 and alpha[D.outer.frame] < 1, "Rest im Hintergrund")
         SB:EndDrag()
+        -- jedes Modul einzeln verschiebbar
+        local keys = {}
+        for _, pt in ipairs(SB.parts) do keys[pt.key] = true end
+        for _, k in ipairs({ "mana", "timer", "background", "rim", "decor", "bigText", "valText", "infoText", "mp5Text" }) do
+            assert(keys[k], "Teil fehlt: " .. k)
+        end
         assert(alpha[D.mp5Text] == 1 and alpha[D.outer.frame] == 1 and SB.drag == nil, "nach dem Ablegen wieder voll")
         for _, r in ipairs({ D.bigText, D.mp5Text, D.outer.frame }) do rawset(r, "SetAlpha", nil) end
     end

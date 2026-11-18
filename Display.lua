@@ -482,9 +482,11 @@ function D:LayoutCircle(S, mode)
         end
         self:SetupGaps(outerR, S, outerDir)
         extent = outerR
+        self.outerExtent = outerR
     elseif mods.ring then
         SetupRing(self.outer, st("outerStyle"), st("outerShape"), st("outerCount"), outerSym, outerR, rotate, outerDir)
         extent = outerR + outerSym * 0.5
+        self.outerExtent = extent
     else
         HideRing(self.outer)
     end
@@ -955,7 +957,9 @@ function D:Update(now)
             local rad = self.outer.radius or S * 0.42
             if self.outer.kind == "pie" then rad = rad * 0.92 end
             self.spark:ClearAllPoints()
-            self.spark:SetPoint("CENTER", self.main, "CENTER", cos(a) * rad, sin(a) * rad)
+            local mx, my = 0, 0     -- der Funke folgt einem verschobenen Mana-Ring
+            if ns.Sandbox then mx, my = ns.Sandbox:Offset("mana") end
+            self.spark:SetPoint("CENTER", self.main, "CENTER", cos(a) * rad + mx, sin(a) * rad + my)
             self.spark:SetAlpha(st("fxSparkPulse") and (0.7 + 0.3 * sin(now * 6)) or 1)
             self.spark:Show()
         else

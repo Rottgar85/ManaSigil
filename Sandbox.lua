@@ -72,7 +72,37 @@ local function Union(rects)
     return L1, B1, R1, T1
 end
 
+-- Kreis um den Mittelpunkt eines Rahmens (Ringe liegen über die ganze Anzeige)
+local function CircleRect(frame, e)
+    local l, b, r, t = Rect(frame)
+    if not l then return nil end
+    local cx, cy = (l + r) / 2, (b + t) / 2
+    return cx - e, cy - e, cx + e, cy + e
+end
+
+local function IsBar() return ns.db.mode == "bar" end
+
 SB.parts = {
+    { key = "background",
+      regions = function() return { IsBar() and D().barBack or D().bg } end,
+      shown = function() return Mods().background end,
+      rect = function() return Rect(IsBar() and D().barBack or D().bg) end },
+    { key = "rim",
+      regions = function() return IsBar() and {} or { D().rim } end,
+      shown = function() return not IsBar() and Mods().rim end,
+      rect = function() return Rect(D().rim) end },
+    { key = "mana",
+      regions = function()
+          local d = D()
+          if IsBar() then return { d.bar } end
+          return { d.outer.frame, d.pieFrame, d.gapFrame, d.fallback }
+      end,
+      shown = function() return Mods().ring end,
+      rect = function()
+          local d = D()
+          if IsBar() then return Rect(d.bar) end
+          return CircleRect(d.outer.frame, d.outerExtent or 20)
+      end },
     TextPart("bigText", "bigText"),
     TextPart("valText", "valText"),
     TextPart("infoText", "infoText"),
@@ -90,11 +120,7 @@ SB.parts = {
       rect = function()
           local d = D()
           if ns.db.mode == "bar" then return Rect(d.bar2) end
-          -- innerer Ring: Mittelpunkt des Ring-Rahmens ± Radius
-          local l, b, r, t = Rect(d.inner.frame)
-          if not l then return nil end
-          local cx, cy, e = (l + r) / 2, (b + t) / 2, d.innerExtent or 10
-          return cx - e, cy - e, cx + e, cy + e
+          return CircleRect(d.inner.frame, d.innerExtent or 10)   -- innerer Ring
       end },
     { key = "decor",
       decor = true,
@@ -250,22 +276,32 @@ function SB:Build()
     self.handles = {}
     -- Ebene der Griffe: Texte über Timer über Dekoration, damit ein Klick auf eine
     -- Schrift immer die Schrift greift (die Deko ist großflächig und liegt darunter)
-    local LEVEL = { decor = 2, timer = 4 }
+    local LEVEL = { background = 1, rim = 2, decor = 3, mana = 4, timer = 5 }
     for _, p in ipairs(self.parts) do
         local h = CreateFrame("Button", nil, f)
-        h:SetFrameLevel(f:GetFrameLevel() + (LEVEL[p.key] or 6))
+        h:SetFrameLevel(f:GetFrameLevel() + (LEVEL[p.key] or 7))
         local hb = h:CreateTexture(nil, "BACKGROUND")
         hb:SetAllPoints()
         hb:SetColorTexture(GREEN[1], GREEN[2], GREEN[3], 1)
         h.fill = hb
         h.edges = Border(h, 1)
-        local lbl = h:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-        lbl:SetPoint("BOTTOMLEFT", h, "TOPLEFT", 2, 1)
+        -- Namensschild: liegt über allen Kästchen, damit sich auch verdeckte Teile
+        -- (Hintergrund, Rand, Mana-Ring unter den Zahlen) greifen lassen
+        local tab = CreateFrame("Button", nil, f)
+        tab:SetFrameLevel(f:GetFrameLevel() + 12)
+        local tb = tab:CreateTexture(nil, "BACKGROUND")
+        tb:SetAllPoints()
+        tb:SetColorTexture(0, 0, 0, 0.75)
+        tab.edges = Border(tab, 0.8)
+        local lbl = tab:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        lbl:SetPoint("CENTER")
         lbl:SetTextColor(GREEN[1], GREEN[2], GREEN[3])
-        h.label = lbl
+        tab.label = lbl
+        h.tab, h.label = tab, lbl
         h.part = p
-        h:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-        h:SetScript("OnMouseDown", function(_, button)
+        for _, g in ipairs({ h, tab }) do
+        g:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+        g:SetScript("OnMouseDown", function(_, button)
             if button ~= "LeftButton" then return end
             local sc = f:GetEffectiveScale() or 1
             local cx, cy = GetCursorPosition()
@@ -273,17 +309,18 @@ function SB:Build()
             SB.drag = { part = p, x = cx / sc, y = cy / sc, ox = ox, oy = oy }
             GameTooltip:Hide()
         end)
-        h:SetScript("OnMouseUp", function(_, button)
+        g:SetScript("OnMouseUp", function(_, button)
             if button == "RightButton" then
                 SetOffset(p.key, 0, 0); ApplyPart(p)
             end
             SB:EndDrag()
         end)
-        h:SetScript("OnEnter", function(s)
-            s.hover = true
+        g:SetScript("OnEnter", function(s)
+            h.hover = true
             if not SB.drag then ShowTip(s, L.SB_PARTS[p.key] or p.key, L.SB_PART_TIP) end
         end)
-        h:SetScript("OnLeave", function(s) s.hover = nil; GameTooltip:Hide() end)
+        g:SetScript("OnLeave", function() h.hover = nil; GameTooltip:Hide() end)
+        end
         Highlight(h)
         self.handles[#self.handles + 1] = h
     end
@@ -339,6 +376,7 @@ function SB:OnUpdate()
     self:Dim()
     -- Griffe folgen ihren Teilen
     local sl, sb = Rect(self.frame)
+    local tabs = {}
     for _, h in ipairs(self.handles) do
         local p = h.part
         local l, b, r, t
@@ -353,10 +391,35 @@ function SB:OnUpdate()
             local dragging = self.drag and self.drag.part == p
             Highlight(h, dragging and "drag" or (h.hover and not self.drag and "hover") or nil)
             -- beim Ziehen treten die anderen Griffe zurück
-            h:SetAlpha((self.drag and not dragging) and 0.25 or 1)
+            local a = (self.drag and not dragging) and 0.25 or 1
+            h:SetAlpha(a)
             h:Show()
+            -- Schild oben links am Teil; überdeckt es ein anderes, rückt es nach rechts bzw. unten
+            local lw = h.label:GetStringWidth()
+            local tw, th = (ns.Readable(lw) and lw or 60) + 10, 14
+            local x0 = cx - w / 2 - sl
+            local tx, ty = x0, cy + hh / 2 - sb
+            local function hits()
+                for _, o in ipairs(tabs) do
+                    if tx < o[1] + o[3] + 2 and tx + tw + 2 > o[1] and ty < o[2] + o[4] + 2 and ty + th + 2 > o[2] then
+                        return true
+                    end
+                end
+            end
+            local tries = 0
+            while hits() and tries < 12 do
+                tries = tries + 1
+                tx = tx + 40
+                if tries % 4 == 0 then tx, ty = x0, ty - th - 2 end
+            end
+            tabs[#tabs + 1] = { tx, ty, tw, th }
+            h.tab:ClearAllPoints()
+            h.tab:SetPoint("BOTTOMLEFT", self.frame, "BOTTOMLEFT", tx, ty)
+            h.tab:SetSize(tw, th)
+            h.tab:SetAlpha(a)
+            h.tab:Show()
         else
-            h:Hide()
+            h:Hide(); h.tab:Hide()
         end
     end
 end
@@ -383,7 +446,7 @@ local DIM = 0.25
 -- Teile der Anzeige, die nicht verschoben werden (Mana-Ring/-Balken, Hintergrund ...)
 local function BaseRegions()
     local d = D()
-    return { d.outer.frame, d.pieFrame, d.gapFrame, d.bg, d.rim, d.bar, d.barBack, d.fallback }
+    return { d.spark }
 end
 
 local function PartRegions(p)
@@ -418,7 +481,7 @@ function SB:EndDrag()
     for _, p in ipairs(self.parts) do
         for _, r in ipairs(PartRegions(p)) do r:SetAlpha(1) end
     end
-    for _, h in ipairs(self.handles or {}) do h:SetAlpha(1) end
+    for _, h in ipairs(self.handles or {}) do h:SetAlpha(1); h.tab:SetAlpha(1) end
 end
 
 function SB:IsActive()

@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.4.1 – 2026-11-18
+
+- **Fixed:** mounting, melee abilities and other spells without mana cost no longer start the five-second rule when the game hides the mana values. Only spells that cost mana count
+
 ## 1.4.0 – 2026-11-18
 
 - **Colors of the bars:** new section in the options. The mana bar (ring / pie / bar) and the timer bar (tick timer / five-second rule) each have their own setting:

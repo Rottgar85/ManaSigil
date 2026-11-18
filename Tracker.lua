@@ -97,32 +97,46 @@ function T:RegisterTick(now, amount)
     ns.Display:OnTick(amount)
 end
 
--- Fallback, falls Manawerte geheim sind: Kostet der Zauber Mana?
+-- Kostet der Zauber Mana? true = ja, false = sicher nicht (Reittier, Nahkampf,
+-- Wut/Energie), nil = unbekannt (Kosten nicht abfragbar)
 local function SpellCostsMana(spellID)
     local getter = (C_Spell and C_Spell.GetSpellPowerCost) or GetSpellPowerCost
-    if not getter or not spellID then return false end
+    if not getter or not spellID then return nil end
     local ok, result = pcall(function()
         local costs = getter(spellID)
-        if type(costs) ~= "table" then return false end
+        if costs == nil then return false end          -- Zauber ohne Kosten
+        if type(costs) ~= "table" then return nil end
+        local unknown = false
         for _, c in ipairs(costs) do
-            if ns.Readable(c.type) and c.type == ns.MANA then
+            if not ns.Readable(c.type) then
+                unknown = true
+            elseif c.type == ns.MANA then
                 for _, field in ipairs({ "cost", "minCost", "costPercent" }) do
                     local v = c[field]
-                    if ns.Readable(v) and v > 0 then return true end
+                    if not ns.Readable(v) then unknown = true
+                    elseif v > 0 then return true end
                 end
             end
         end
+        if unknown then return nil end
         return false
     end)
-    return ok and result
+    if not ok then return nil end
+    return result
 end
+T.SpellCostsMana = SpellCostsMana
 
 function T:OnSpellCast(spellID)
+    local costs = SpellCostsMana(spellID)
+    if costs == false then return end   -- kostet kein Mana: zählt nicht (z. B. Reittier, Nahkampf)
+    if costs == nil then
+        -- Kosten unbekannt: die nächste Manaänderung entscheidet (siehe OnPower)
+        self.lastCast = GetTime()
+        return
+    end
     self.lastCast = GetTime()
     -- Bei lesbaren Werten erkennt OnPower den Verbrauch zuverlässiger (z. B. Freizauber).
-    if self.secret and SpellCostsMana(spellID) then
-        self:StartFSR()
-    end
+    if self.secret then self:StartFSR() end
 end
 
 -- Abfragen für die Anzeige ---------------------------------------------------

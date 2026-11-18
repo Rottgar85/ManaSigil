@@ -309,6 +309,20 @@ do
     ev(nil, "UNIT_SPELLCAST_SUCCEEDED", "player", "g", 2050); now = now + 0.1
     ev(nil, "UNIT_POWER_UPDATE", "player", "MANA"); upd(nil, 1)
     assert(T:InFSR(now), "5-Sek.-Regel bei geheimen Werten über den Zauber erkannt")
+    -- Reittier / Nahkampf (kostet kein Mana) darf die 5-Sek.-Regel nicht starten,
+    -- auch wenn kurz danach eine Mana-Meldung kommt; ein Manazauber schon
+    local costs = { [111] = {}, [222] = { { type = 1, cost = 15 } }, [333] = { { type = 0, cost = 40 } } }
+    C_Spell = { GetSpellPowerCost = function(id) return costs[id] end }
+    for _, id in ipairs({ 111, 222 }) do
+        now = now + 6; T.fsrEnd = 0
+        ev(nil, "UNIT_SPELLCAST_SUCCEEDED", "player", "g", id); now = now + 0.1
+        ev(nil, "UNIT_POWER_UPDATE", "player", "MANA")
+        assert(not T:InFSR(now), "kein Mana verbraucht -> keine 5-Sek.-Regel (" .. id .. ")")
+    end
+    now = now + 6; T.fsrEnd = 0
+    ev(nil, "UNIT_SPELLCAST_SUCCEEDED", "player", "g", 333)
+    assert(T:InFSR(now), "Manazauber startet die 5-Sek.-Regel")
+    C_Spell = nil
     -- Kurven des Spiels: Prozent, Farbverlauf und Warnung trotz geheimer Werte
     local secretFrac = 0.1
     Enum.LuaCurveType = { Linear = 1, Step = 2 }

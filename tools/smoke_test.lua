@@ -409,6 +409,18 @@ do
     SB:ResetAll(); SlashCmdList.MANASIGIL("mode ring"); SB:ResetAll()
     assert(not ns.db.layout.ring, "Anordnung zurückgesetzt")
     assert(ns.L.SB_PARTS.decor and ns.L.SB_TITLE, "Sandbox-Texte übersetzt")
+    -- Ziehen: alles andere wird abgedunkelt, danach wieder voll sichtbar
+    do
+        local alpha = {}
+        local function track(r) rawset(r, "SetAlpha", function(_, a) alpha[r] = a end) end
+        track(D.bigText); track(D.mp5Text); track(D.outer.frame)
+        SB.drag = { part = SB.parts[1], x = 0, y = 0, ox = 0, oy = 0 }   -- Zahlen greifen
+        SB:Dim()
+        assert(alpha[D.bigText] == 1 and alpha[D.mp5Text] < 1 and alpha[D.outer.frame] < 1, "Rest im Hintergrund")
+        SB:EndDrag()
+        assert(alpha[D.mp5Text] == 1 and alpha[D.outer.frame] == 1 and SB.drag == nil, "nach dem Ablegen wieder voll")
+        for _, r in ipairs({ D.bigText, D.mp5Text, D.outer.frame }) do rawset(r, "SetAlpha", nil) end
+    end
     -- Einstellungen offen: Sandbox erscheint (ohne Endlosschleife), geschlossen: verschwindet
     local shown = false
     local oldOpen, oldIsShown = ns.Options.IsOpen, D.frame.IsShown

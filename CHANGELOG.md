@@ -4,6 +4,7 @@
 
 - **Fixed:** Lua error in the sandbox (`Sandbox.lua:38 … secret number value`) every frame when the game hides the mana values: the size of a text showing a hidden value is hidden too. Such texts are now measured with an invisible placeholder of the same font size
 - Sandbox errors can no longer stop the display and are reported only once
+- **Sandbox handling:** click directly on a text (or the timer / decoration) and drag it. While you drag, everything else fades into the background until you let go. Texts lie above the decoration, so a click on a text always grabs the text. Empty texts (timer) show a sample text while the sandbox is open
 
 ## 1.5.0 – 2026-11-18
 

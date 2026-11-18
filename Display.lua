@@ -1072,6 +1072,8 @@ function D:Update(now)
     else
         self:SecretStyle(now, mods.text and tm ~= "none" and mods.ring)
     end
+    local sb = ns.Sandbox
+    if info == "" and sb and sb:IsActive() then info = "5.0" end   -- Beispielschrift zum Greifen
     self.infoText:SetText(info)
     self.infoText:SetTextColor(ir, ig, ib)
     self.infoText:SetShown(mods.text)
@@ -1116,6 +1118,8 @@ function D:Update(now)
             t:SetAlpha(max(0, min(1, alpha)))
         end
     end
+
+    if sb and sb.drag then sb:Dim() end
 
     -- Sichtbarkeit bei "bei vollem Mana ausblenden" nachziehen
     if db.hideWhenFull and db.locked then

@@ -192,6 +192,15 @@ local function Border(f, a)
     edges[2]:SetPoint("BOTTOMLEFT"); edges[2]:SetPoint("BOTTOMRIGHT"); edges[2]:SetHeight(2)
     edges[3]:SetPoint("TOPLEFT"); edges[3]:SetPoint("BOTTOMLEFT"); edges[3]:SetWidth(2)
     edges[4]:SetPoint("TOPRIGHT"); edges[4]:SetPoint("BOTTOMRIGHT"); edges[4]:SetWidth(2)
+    return edges
+end
+
+-- Griff hervorheben: beim Überfahren und Ziehen deutlich, sonst nur ein feiner Rahmen
+local function Highlight(h, level)
+    local fillA, edgeA = 0.0, 0.35
+    if level == "hover" then fillA, edgeA = 0.15, 0.9 elseif level == "drag" then fillA, edgeA = 0.25, 1 end
+    h.fill:SetAlpha(fillA)
+    for _, e in ipairs(h.edges) do e:SetAlpha(edgeA) end
 end
 
 local function ShowTip(owner, title, text)
@@ -239,13 +248,17 @@ function SB:Build()
     self.titleBar = bar
 
     self.handles = {}
+    -- Ebene der Griffe: Texte über Timer über Dekoration, damit ein Klick auf eine
+    -- Schrift immer die Schrift greift (die Deko ist großflächig und liegt darunter)
+    local LEVEL = { decor = 2, timer = 4 }
     for _, p in ipairs(self.parts) do
         local h = CreateFrame("Button", nil, f)
-        h:SetFrameLevel(f:GetFrameLevel() + 2)
+        h:SetFrameLevel(f:GetFrameLevel() + (LEVEL[p.key] or 6))
         local hb = h:CreateTexture(nil, "BACKGROUND")
         hb:SetAllPoints()
-        hb:SetColorTexture(GREEN[1], GREEN[2], GREEN[3], 0.18)
-        Border(h, 0.7)
+        hb:SetColorTexture(GREEN[1], GREEN[2], GREEN[3], 1)
+        h.fill = hb
+        h.edges = Border(h, 1)
         local lbl = h:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
         lbl:SetPoint("BOTTOMLEFT", h, "TOPLEFT", 2, 1)
         lbl:SetTextColor(GREEN[1], GREEN[2], GREEN[3])
@@ -258,15 +271,20 @@ function SB:Build()
             local cx, cy = GetCursorPosition()
             local ox, oy = SB:Offset(p.key)
             SB.drag = { part = p, x = cx / sc, y = cy / sc, ox = ox, oy = oy }
+            GameTooltip:Hide()
         end)
         h:SetScript("OnMouseUp", function(_, button)
             if button == "RightButton" then
                 SetOffset(p.key, 0, 0); ApplyPart(p)
             end
-            SB.drag = nil
+            SB:EndDrag()
         end)
-        h:SetScript("OnEnter", function(s) ShowTip(s, L.SB_PARTS[p.key] or p.key, L.SB_PART_TIP) end)
-        h:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        h:SetScript("OnEnter", function(s)
+            s.hover = true
+            if not SB.drag then ShowTip(s, L.SB_PARTS[p.key] or p.key, L.SB_PART_TIP) end
+        end)
+        h:SetScript("OnLeave", function(s) s.hover = nil; GameTooltip:Hide() end)
+        Highlight(h)
         self.handles[#self.handles + 1] = h
     end
 
@@ -315,9 +333,10 @@ function SB:OnUpdate()
             local cx, cy = GetCursorPosition()
             MoveClamped(drag.part, math.floor(drag.ox + cx / sc - drag.x + 0.5), math.floor(drag.oy + cy / sc - drag.y + 0.5))
         else
-            self.drag = nil
+            self:EndDrag()
         end
     end
+    self:Dim()
     -- Griffe folgen ihren Teilen
     local sl, sb = Rect(self.frame)
     for _, h in ipairs(self.handles) do
@@ -331,6 +350,10 @@ function SB:OnUpdate()
             h:SetPoint("BOTTOMLEFT", self.frame, "BOTTOMLEFT", cx - w / 2 - sl, cy - hh / 2 - sb)
             h:SetSize(w, hh)
             h.label:SetText(L.SB_PARTS[p.key] or p.key)
+            local dragging = self.drag and self.drag.part == p
+            Highlight(h, dragging and "drag" or (h.hover and not self.drag and "hover") or nil)
+            -- beim Ziehen treten die anderen Griffe zurück
+            h:SetAlpha((self.drag and not dragging) and 0.25 or 1)
             h:Show()
         else
             h:Hide()
@@ -350,8 +373,56 @@ function SB:UpdateVisibility()
     if on then
         D():Refresh()                -- Maße erst jetzt sicher bekannt: Sandbox neu ausmessen
     else
-        self.drag = nil
+        self:EndDrag()
     end
+end
+
+-- Beim Ziehen rückt alles andere in den Hintergrund ---------------------------------
+local DIM = 0.25
+
+-- Teile der Anzeige, die nicht verschoben werden (Mana-Ring/-Balken, Hintergrund ...)
+local function BaseRegions()
+    local d = D()
+    return { d.outer.frame, d.pieFrame, d.gapFrame, d.bg, d.rim, d.bar, d.barBack, d.fallback }
+end
+
+local function PartRegions(p)
+    if p.decor then
+        local t = {}
+        for _, a in ipairs(D().activeDecor) do t[#t + 1] = a.tex end
+        return t
+    end
+    local regs = p.regions()
+    if p.key == "bigText" then regs[#regs + 1] = D().warnHolder end
+    return regs
+end
+
+function SB:Dim()
+    local drag = self.drag
+    if not drag then return end
+    for _, r in ipairs(BaseRegions()) do r:SetAlpha(DIM) end
+    for _, p in ipairs(self.parts) do
+        local a = (p == drag.part) and 1 or DIM
+        for _, r in ipairs(PartRegions(p)) do r:SetAlpha(a) end
+    end
+    self.dimmed = true
+end
+
+-- Ziehen beenden: alles wieder voll sichtbar (Texte und Deko setzt die Anzeige
+-- ohnehin in jedem Bild neu, der Rest wird hier zurückgesetzt)
+function SB:EndDrag()
+    self.drag = nil
+    if not self.dimmed then return end
+    self.dimmed = nil
+    for _, r in ipairs(BaseRegions()) do r:SetAlpha(1) end
+    for _, p in ipairs(self.parts) do
+        for _, r in ipairs(PartRegions(p)) do r:SetAlpha(1) end
+    end
+    for _, h in ipairs(self.handles or {}) do h:SetAlpha(1) end
+end
+
+function SB:IsActive()
+    return self.frame ~= nil and self.frame:IsShown() == true
 end
 
 -- Alle Verschiebungen des aktuellen Modus zurücksetzen

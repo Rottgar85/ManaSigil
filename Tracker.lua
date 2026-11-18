@@ -7,6 +7,7 @@ ns.Tracker = T
 local FSR_DURATION = 5     -- Sekunden ohne Manaverbrauch bis zur vollen Regeneration
 local TICK_INTERVAL = 2    -- Server-Tick der Mana-Regeneration
 local MIN_TICK_GAP = 1.5   -- kleinere Abstände gelten nicht als neuer Tick (z. B. Tränke)
+local CAST_WINDOW = 0.5    -- Manaänderung so kurz nach einem Zauber = Verbrauch (bei geheimen Werten)
 
 T.FSR_DURATION = FSR_DURATION
 T.TICK_INTERVAL = TICK_INTERVAL
@@ -37,9 +38,16 @@ end
 function T:OnPower()
     local cur = UnitPower("player", ns.MANA)
     if not ns.Readable(cur) then
-        -- Geheimer Wert: nicht vergleichen; FSR wird dann über Zauberkosten erkannt.
+        -- Geheimer Wert: nicht vergleichen. Das Event selbst ist aber ein Signal:
+        -- kurz nach einem Zauber = Verbrauch (5-Sek.-Regel), sonst = Regenerations-Tick.
         self.secret = true
         self.lastMana = nil
+        local now = GetTime()
+        if self.lastCast and now - self.lastCast < CAST_WINDOW then
+            if now >= self.fsrEnd then self:StartFSR(now) end
+        elseif now >= self.fsrEnd then
+            self:RegisterTick(now, nil)
+        end
         return
     end
     self.secret = false
@@ -49,14 +57,23 @@ function T:OnPower()
         if cur < last then
             self:StartFSR(now)
         elseif cur > last and now >= self.fsrEnd then
-            if not self.lastTick or (now - self.lastTick) >= MIN_TICK_GAP then
-                self.lastTick = now
-                self.tickAmount = cur - last
-                ns.Display:OnTick(self.tickAmount)
-            end
+            self:RegisterTick(now, cur - last)
         end
     end
     self.lastMana = cur
+end
+
+-- Tick merken (Abstände der letzten Ticks für /msig debug)
+function T:RegisterTick(now, amount)
+    if self.lastTick and (now - self.lastTick) < MIN_TICK_GAP then return end
+    if self.lastTick then
+        self.gaps = self.gaps or {}
+        table.insert(self.gaps, 1, now - self.lastTick)
+        self.gaps[6] = nil
+    end
+    self.lastTick = now
+    if amount then self.tickAmount = amount end
+    ns.Display:OnTick(amount)
 end
 
 -- Fallback, falls Manawerte geheim sind: Kostet der Zauber Mana?
@@ -80,6 +97,7 @@ local function SpellCostsMana(spellID)
 end
 
 function T:OnSpellCast(spellID)
+    self.lastCast = GetTime()
     -- Bei lesbaren Werten erkennt OnPower den Verbrauch zuverlässiger (z. B. Freizauber).
     if self.secret and SpellCostsMana(spellID) then
         self:StartFSR()

@@ -356,6 +356,10 @@ local function Debug()
         show(cur), show(maxMana), show(base), show(casting),
         ns.Tracker:InFSR() and "yes" or "no", show(ns.Tracker.tickAmount), ns.db.mode,
         issecretvalue and "yes" or "no"))
+    local gaps = {}
+    for _, g in ipairs(ns.Tracker.gaps or {}) do gaps[#gaps + 1] = string.format("%.2f", g) end
+    ns.Print("tick gaps: " .. (#gaps > 0 and table.concat(gaps, " ") or "-")
+        .. "  secret=" .. (ns.Tracker.secret and "yes" or "no"))
 end
 
 SLASH_MANASIGIL1 = "/manasigil"

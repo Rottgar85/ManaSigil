@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.3.1 – 2026-11-18
+
+- Tick timer and five-second rule now also work when the game hides the mana values (detected from the mana events and your spell casts)
+- `/msig debug` additionally shows the time between the last mana ticks
+
 ## 1.3.0 – 2026-11-18
 
 - **Color gradient for the numbers:** green when mana is full, yellow in the middle, red when low (or a fixed color). The point where it is yellow is adjustable, and the three colors can be changed

@@ -239,6 +239,31 @@ do
     mana = 1000; ev(nil, "UNIT_POWER_UPDATE", "player", "MANA"); now = now + 0.1; upd(nil, 1)
 end
 
+-- Geheime Manawerte: Ticks und 5-Sek.-Regel werden über die Events erkannt
+do
+    local SMT = {}
+    local function boom() error("secret value used", 2) end
+    for _, m in ipairs({ "__add", "__sub", "__mul", "__div", "__lt", "__le", "__concat", "__unm" }) do SMT[m] = boom end
+    local oldUP, oldUPM, oldRegen = UnitPower, UnitPowerMax, GetManaRegen
+    issecretvalue = function(v) return getmetatable(v) == SMT end
+    UnitPower = function() return setmetatable({}, SMT) end
+    UnitPowerMax = function() return setmetatable({}, SMT) end
+    GetManaRegen = function() return setmetatable({}, SMT), setmetatable({}, SMT) end
+    local T = ns.Tracker
+    T:Reset(); T.fsrEnd = 0
+    for _, mode in ipairs({ "bar", "ring", "pie" }) do
+        SlashCmdList.MANASIGIL("mode " .. mode)
+        for _ = 1, 3 do now = now + 2; ev(nil, "UNIT_POWER_UPDATE", "player", "MANA"); upd(nil, 1) end
+    end
+    assert(T.lastTick == now and T:TickProgress(now + 1) == 0.5, "Tick bei geheimen Werten erkannt")
+    now = now + 0.7
+    ev(nil, "UNIT_SPELLCAST_SUCCEEDED", "player", "g", 2050); now = now + 0.1
+    ev(nil, "UNIT_POWER_UPDATE", "player", "MANA"); upd(nil, 1)
+    assert(T:InFSR(now), "5-Sek.-Regel bei geheimen Werten über den Zauber erkannt")
+    UnitPower, UnitPowerMax, GetManaRegen, issecretvalue = oldUP, oldUPM, oldRegen, nil
+    T:Reset()
+end
+
 -- Übersetzung: alle Schlüssel der englischen Tabelle müssen auch in der aktiven Sprache existieren
 print("Sprache", GetLocale(), "Thema angel =", ns.themes.angel.name, "| Symbol skull =", ns.shapeNames.skull)
 assert(ns.L.H_THEME ~= "H_THEME" and ns.L.COLORS.ring and ns.L.MODULES.rim, "Übersetzung fehlt")

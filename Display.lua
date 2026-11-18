@@ -47,9 +47,30 @@ ns.RotTexCoord = RotTexCoord
 -- Ein Ring besteht aus vielen kleinen Texturen in einem eigenen Frame:
 --   symbols = einzelne Symbole, solid = überlappende Kugeln (durchgehender Kreis),
 --   pie     = Tortenstücke vom Mittelpunkt aus.
+-- Ankerpunkte der verschiebbaren Teile werden hier mitgeschrieben. Die Sandbox liest
+-- sie von hier, nicht vom Spiel: das hält die Ankerpunkte von Texten mit geheimem
+-- Inhalt (z. B. dem Manawert) selbst geheim.
+local pins = setmetatable({}, { __mode = "k" })
+local function Pin(r, point, rel, relPoint, x, y)
+    local list = pins[r]
+    if not list then list = {}; pins[r] = list end
+    list[#list + 1] = { point, rel, relPoint or point, x or 0, y or 0 }
+    r:SetPoint(point, rel, relPoint or point, x or 0, y or 0)
+end
+local function Unpin(r)
+    r:ClearAllPoints()
+    pins[r] = {}
+end
+local function PinFill(r, parent)
+    Unpin(r)
+    Pin(r, "TOPLEFT", parent, "TOPLEFT", 0, 0)
+    Pin(r, "BOTTOMRIGHT", parent, "BOTTOMRIGHT", 0, 0)
+end
+function D:GetPins(r) return pins[r] end
+
 local function NewRing(parent)
     local f = CreateFrame("Frame", nil, parent)
-    f:SetAllPoints()
+    PinFill(f, parent)
     return { frame = f, pips = {}, n = 0, cache = {} }
 end
 
@@ -195,10 +216,10 @@ function D:Build()
 
     local m = self.main
     self.bg = m:CreateTexture(nil, "BACKGROUND")
-    self.bg:SetPoint("CENTER")
+    Pin(self.bg, "CENTER", m, "CENTER", 0, 0)
     self.rim = m:CreateTexture(nil, "BORDER")
     self.rim:SetTexture(Media("rim"))
-    self.rim:SetPoint("CENTER")
+    Pin(self.rim, "CENTER", m, "CENTER", 0, 0)
 
     self.outer = NewRing(m)
     self.inner = NewRing(m)
@@ -207,7 +228,7 @@ function D:Build()
 
     -- Torte als Flüssigkeit (von unten/oben gefüllt)
     local pf = CreateFrame("Frame", nil, m)
-    pf:SetAllPoints(); pf:SetFrameLevel(lvl + 3)
+    PinFill(pf, m); pf:SetFrameLevel(lvl + 3)
     self.pieFrame = pf
     self.pieEmpty = pf:CreateTexture(nil, "ARTWORK", nil, 0)
     self.pieEmpty:SetTexture(Media("filldisc"))
@@ -216,7 +237,7 @@ function D:Build()
     pf:Hide()
     -- Trennlinien zwischen Tortenstücken
     local gf = CreateFrame("Frame", nil, m)
-    gf:SetAllPoints(); gf:SetFrameLevel(lvl + 4)
+    PinFill(gf, m); gf:SetFrameLevel(lvl + 4)
     self.gapFrame = gf
     self.gaps = {}
 
@@ -292,8 +313,8 @@ end
 
 -- Layout -------------------------------------------------------------------------
 local function PlaceText(fs, parent, point, x, y)
-    fs:ClearAllPoints()
-    fs:SetPoint(point, parent, point, x, y)
+    Unpin(fs)
+    Pin(fs, point, parent, point, x, y)
 end
 
 -- Balken-Modus: waagerecht (Timer-Balken darunter) oder senkrecht (Timer-Balken rechts daneben).
@@ -317,9 +338,9 @@ function D:LayoutBar(S)
     local bf = self.barFrame
     bf:ClearAllPoints(); bf:SetAllPoints(self.frame); bf:Show()
     local pad = max(2, T1 * 0.12)
-    self.barBack:ClearAllPoints()
-    self.barBack:SetPoint("TOPLEFT", bf, "TOPLEFT", -pad, pad)
-    self.barBack:SetPoint("BOTTOMRIGHT", bf, "BOTTOMRIGHT", pad, -pad)
+    Unpin(self.barBack)
+    Pin(self.barBack, "TOPLEFT", bf, "TOPLEFT", -pad, pad)
+    Pin(self.barBack, "BOTTOMRIGHT", bf, "BOTTOMRIGHT", pad, -pad)
     self.barBack:SetTexture(BAR_TEX.flat)
 
     local tex = BAR_TEX[st("barTexture")] or BAR_TEX.smooth
@@ -331,17 +352,17 @@ function D:LayoutBar(S)
         bar:SetRotatesTexture(not horiz)
         empty:SetTexture(tex)
         RotTexCoord(empty, horiz and 0 or math.pi / 2)
-        bar:ClearAllPoints()
+        Unpin(bar)
     end
     if horiz then
-        self.bar:SetPoint("TOPLEFT", bf, "TOPLEFT"); self.bar:SetPoint("TOPRIGHT", bf, "TOPRIGHT")
+        Pin(self.bar, "TOPLEFT", bf, "TOPLEFT"); Pin(self.bar, "TOPRIGHT", bf, "TOPRIGHT")
         self.bar:SetHeight(T1)
-        self.bar2:SetPoint("BOTTOMLEFT", bf, "BOTTOMLEFT"); self.bar2:SetPoint("BOTTOMRIGHT", bf, "BOTTOMRIGHT")
+        Pin(self.bar2, "BOTTOMLEFT", bf, "BOTTOMLEFT"); Pin(self.bar2, "BOTTOMRIGHT", bf, "BOTTOMRIGHT")
         self.bar2:SetHeight(max(1, T2))
     else
-        self.bar:SetPoint("TOPLEFT", bf, "TOPLEFT"); self.bar:SetPoint("BOTTOMLEFT", bf, "BOTTOMLEFT")
+        Pin(self.bar, "TOPLEFT", bf, "TOPLEFT"); Pin(self.bar, "BOTTOMLEFT", bf, "BOTTOMLEFT")
         self.bar:SetWidth(T1)
-        self.bar2:SetPoint("TOPRIGHT", bf, "TOPRIGHT"); self.bar2:SetPoint("BOTTOMRIGHT", bf, "BOTTOMRIGHT")
+        Pin(self.bar2, "TOPRIGHT", bf, "TOPRIGHT"); Pin(self.bar2, "BOTTOMRIGHT", bf, "BOTTOMRIGHT")
         self.bar2:SetWidth(max(1, T2))
     end
     self.bar:SetReverseFill(st("barDir") == "reverse")
@@ -351,22 +372,22 @@ function D:LayoutBar(S)
 
     local ts = st("textScale")
     self.valText:Hide()
-    self.mp5Text:ClearAllPoints()
+    Unpin(self.mp5Text)
     if horiz then
         SetFontSize(self.bigText, T1 * 0.62 * ts)
         SetFontSize(self.infoText, max(T2 * 0.95, T1 * 0.4) * ts)
         SetFontSize(self.mp5Text, T1 * 0.5 * ts)
         PlaceText(self.bigText, self.bar, "CENTER", 0, 0)
         PlaceText(self.infoText, self.bar2, "CENTER", 0, 0)
-        self.mp5Text:SetPoint("TOP", bf, "BOTTOM", 0, -pad - 2)
+        Pin(self.mp5Text, "TOP", bf, "BOTTOM", 0, -pad - 2)
     else
         -- senkrecht: Zahlen über und unter dem Balken
         SetFontSize(self.bigText, S * 0.14 * ts)
         SetFontSize(self.infoText, S * 0.10 * ts)
         SetFontSize(self.mp5Text, S * 0.085 * ts)
-        self.bigText:ClearAllPoints(); self.bigText:SetPoint("BOTTOM", bf, "TOP", 0, pad + 2)
-        self.infoText:ClearAllPoints(); self.infoText:SetPoint("TOP", bf, "BOTTOM", 0, -pad - 2)
-        self.mp5Text:SetPoint("TOP", self.infoText, "BOTTOM", 0, -2)
+        Unpin(self.bigText); Pin(self.bigText, "BOTTOM", bf, "TOP", 0, pad + 2)
+        Unpin(self.infoText); Pin(self.infoText, "TOP", bf, "BOTTOM", 0, -pad - 2)
+        Pin(self.mp5Text, "TOP", self.infoText, "BOTTOM", 0, -2)
     end
 
     local sp = T1 * 1.6 * st("sparkSize")
@@ -519,8 +540,8 @@ function D:LayoutCircle(S, mode)
     self.flash:SetSize(S * 0.9, S * 0.9)
 
     self.fallback:SetSize(S * 0.5, S * 0.07)
-    self.fallback:ClearAllPoints()
-    self.fallback:SetPoint("CENTER", self.main, "CENTER", 0, -S * 0.2)
+    Unpin(self.fallback)
+    Pin(self.fallback, "CENTER", self.main, "CENTER", 0, -S * 0.2)
 
     local ts = st("textScale")
     SetFontSize(self.bigText, S * 0.19 * ts)

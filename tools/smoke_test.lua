@@ -367,19 +367,33 @@ do
         end
         SB:EndDrag()
         rawset(D.bigText, "GetRect", nil); rawset(D.bigText, "IsShown", nil)
-        -- unbrauchbare Ankerpunkte (fehlender Punkt, geheimer Abstand) werden ersetzt
+        -- Ankerpunkte kommen aus der eigenen Mitschrift, nie vom Spiel (dort geheim)
         local parent = {}
-        local r = { GetNumPoints = function() return 2 end, GetParent = function() return parent end,
-                    GetPoint = function(_, i)
-                        if i == 1 then return nil end
-                        return "TOP", nil, nil, sec(), 5
-                    end }
+        local r = { GetParent = function() return parent end,
+                    GetPoint = function() error("GetPoint darf nicht benutzt werden") end,
+                    GetPins = function() return { { nil }, { "TOP", nil, nil, sec(), 5 } } end }
         local pts = SB.CapturePoints(r)
         assert(#pts == 1 and pts[1][1] == "TOP" and pts[1][2] == parent and pts[1][3] == "TOP"
             and pts[1][4] == 0 and pts[1][5] == 5, "Ankerpunkte bereinigt")
-        r.GetNumPoints = function() return 0 end
+        r.GetPins = function() return {} end
         pts = SB.CapturePoints(r)
         assert(#pts == 2 and pts[1][1] == "TOPLEFT", "ohne Ankerpunkt: Eltern-Rahmen füllen")
+        -- die echten Teile: Zahlen haben mitgeschriebene Ankerpunkte
+        local pins = D:GetPins(D.bigText)
+        assert(pins and #pins >= 1 and type(pins[1][1]) == "string", "Ankerpunkte der Zahlen mitgeschrieben")
+        rawset(D.bigText, "GetPoint", function() error("GetPoint der Zahlen ist geheim") end)
+        D:Refresh()
+        rawset(D.bigText, "GetPoint", nil)
+        -- Ziehen setzt die Zahlen wirklich mit der Verschiebung neu
+        local lastX, lastY
+        local base = D:GetPins(D.bigText)[1]
+        rawset(D.bigText, "SetPoint", function(_, _, _, _, x, y) lastX, lastY = x, y end)
+        for _, pt in ipairs(SB.parts) do
+            if pt.key == "bigText" then SB.MoveClamped(pt, 17, -9) end
+        end
+        assert(lastX == base[4] + 17 and lastY == base[5] - 9, "Zahlen verschoben")
+        rawset(D.bigText, "SetPoint", nil)
+        ns.db.layout[ns.db.mode] = nil; D:Refresh()
     end
     C_CurveUtil, UnitPowerPercent = nil, nil; ns.db.textMode = "both"
     UnitPower, UnitPowerMax, GetManaRegen, issecretvalue = oldUP, oldUPM, oldRegen, nil

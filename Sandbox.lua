@@ -139,16 +139,17 @@ local VALID_POINT = { TOPLEFT = true, TOP = true, TOPRIGHT = true, LEFT = true, 
 -- Liest die Ankerpunkte eines Teils. Unbrauchbare Angaben (fehlender Punkt, geheime oder
 -- fehlende Abstände) werden ersetzt; ohne brauchbare Punkte füllt das Teil seinen Eltern-Rahmen.
 local function CapturePoints(r)
+    -- Die Anzeige schreibt ihre Ankerpunkte selbst mit (D:GetPins). Beim Spiel nachfragen
+    -- geht nicht: bei Texten mit geheimem Inhalt sind sogar die Ankerpunkte geheim.
     local pts = {}
-    local ok, n = pcall(r.GetNumPoints, r)
-    n = (ok and ns.Readable(n)) and n or 0
-    for i = 1, n do
-        local okP, point, rel, relPoint, x, y = pcall(r.GetPoint, r, i)
-        if okP and type(point) == "string" and VALID_POINT[point:upper()] then
-            if type(relPoint) ~= "string" or not VALID_POINT[relPoint:upper()] then relPoint = point end
+    local src = (D().GetPins and D():GetPins(r)) or (r.GetPins and r:GetPins()) or {}
+    for _, pt in ipairs(src) do
+        local point, rel, relPoint, x, y = pt[1], pt[2], pt[3], pt[4], pt[5]
+        if type(point) == "string" and VALID_POINT[point] then
+            if type(relPoint) ~= "string" or not VALID_POINT[relPoint] then relPoint = point end
             if type(rel) ~= "table" then rel = r:GetParent() end
-            if not (ns.Readable(x) and type(x) == "number") then x = 0 end
-            if not (ns.Readable(y) and type(y) == "number") then y = 0 end
+            if type(x) ~= "number" then x = 0 end
+            if type(y) ~= "number" then y = 0 end
             pts[#pts + 1] = { point, rel, relPoint, x, y }
         end
     end

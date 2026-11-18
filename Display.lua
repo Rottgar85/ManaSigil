@@ -264,7 +264,12 @@ function D:Build()
         D.elapsed = D.elapsed + elapsed
         if D.elapsed < UPDATE_RATE then return end
         D.elapsed = 0
-        D:Update(GetTime())
+        -- Fehler nur einmal melden statt 40-mal pro Sekunde
+        local ok, err = pcall(D.Update, D, GetTime())
+        if not ok and not D.updateErrorShown then
+            D.updateErrorShown = true
+            ns.ReportError("Update", err)
+        end
     end)
 end
 

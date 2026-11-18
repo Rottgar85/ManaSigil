@@ -279,21 +279,37 @@ function handlers.ADDON_LOADED(name)
     events:UnregisterEvent("ADDON_LOADED")
 end
 
+-- Fehler eines Teils melden, ohne den Rest des Addons anzuhalten
+function ns.ReportError(where, err)
+    local msg = "ManaSigil " .. (C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata(addonName, "Version") or "")
+        .. " [" .. where .. "]: " .. tostring(err)
+    ns.Print("|cffff6060" .. msg .. "|r")
+    local handler = geterrorhandler and geterrorhandler()
+    if handler then pcall(handler, msg) end
+end
+
+local function Safe(where, fn, ...)
+    local ok, err = pcall(fn, ...)
+    if not ok then ns.ReportError(where, err) end
+    return ok
+end
+
 function handlers.PLAYER_LOGIN()
-    ns.Display:Build()
-    ns.Tracker:Init()
-    ns.Options:Build()
-    ns.Minimap:Build()
-    ns.Display:Refresh()
+    -- Events zuerst: die Mana-/Tick-Erkennung läuft auch, wenn ein anderer Teil scheitert
+    events:RegisterUnitEvent("UNIT_POWER_UPDATE", "player")
+    events:RegisterUnitEvent("UNIT_POWER_FREQUENT", "player")
+    events:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player")
+    Safe("Tracker", ns.Tracker.Init, ns.Tracker)
+    Safe("Display", ns.Display.Build, ns.Display)
+    Safe("Options", ns.Options.Build, ns.Options)
+    Safe("Minimap", ns.Minimap.Build, ns.Minimap)
+    Safe("Refresh", ns.Display.Refresh, ns.Display)
 
     events:RegisterEvent("PLAYER_ENTERING_WORLD")
     events:RegisterEvent("PLAYER_REGEN_DISABLED")
     events:RegisterEvent("PLAYER_REGEN_ENABLED")
-    events:RegisterUnitEvent("UNIT_POWER_UPDATE", "player")
-    events:RegisterUnitEvent("UNIT_POWER_FREQUENT", "player")
     events:RegisterUnitEvent("UNIT_MAXPOWER", "player")
     events:RegisterUnitEvent("UNIT_DISPLAYPOWER", "player")
-    events:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player")
 end
 
 function handlers.PLAYER_ENTERING_WORLD()

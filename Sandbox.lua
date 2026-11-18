@@ -31,11 +31,32 @@ local function D() return ns.Display end
 local function Mods() return ns.db.modules end
 
 -- Rechteck eines Bildschirmelements: links, unten, rechts, oben (oder nil)
+-- Geheime Werte (z. B. die Breite eines Textes mit geheimem Manawert) gelten als unbekannt
 local function Rect(r)
     if not r then return nil end
-    local l, b, w, h = r:GetRect()
-    if not l then return nil end
+    local ok, l, b, w, h = pcall(r.GetRect, r)
+    if not ok or not (ns.Readable(l) and ns.Readable(b) and ns.Readable(w) and ns.Readable(h)) then return nil end
     return l, b, l + w, b + h
+end
+
+-- Texte: Größe eines Textes mit geheimem Inhalt ist selbst geheim. Dann misst ein
+-- unsichtbarer Platzhalter an derselben Stelle (Größe nach der Schriftgröße geschätzt).
+local function TextRect(p)
+    local fs = p.regions()[1]
+    local l, b, r, t = Rect(fs)
+    if l then return l, b, r, t end
+    return Rect(p.probe)
+end
+
+local function TextPart(key, field, extra)
+    return {
+        key = key, text = true,
+        regions = function() return { D()[field] } end,
+        shown = function()
+            return Mods().text and D()[field]:IsShown() and (not extra or extra())
+        end,
+        rect = TextRect,
+    }
 end
 
 local function Union(rects)
@@ -52,15 +73,10 @@ local function Union(rects)
 end
 
 SB.parts = {
-    { key = "bigText",  regions = function() return { D().bigText } end,
-      shown = function() return Mods().text and D().bigText:IsShown() end, rect = function() return Rect(D().bigText) end },
-    { key = "valText",  regions = function() return { D().valText } end,
-      shown = function() return Mods().text and D().valText:IsShown() end, rect = function() return Rect(D().valText) end },
-    { key = "infoText", regions = function() return { D().infoText } end,
-      shown = function() return Mods().text and D().infoText:IsShown() end, rect = function() return Rect(D().infoText) end },
-    { key = "mp5Text",  regions = function() return { D().mp5Text } end,
-      shown = function() return Mods().text and D().mp5Text:IsShown() and ns.GetStyle("mp5Mode") ~= "off" end,
-      rect = function() return Rect(D().mp5Text) end },
+    TextPart("bigText", "bigText"),
+    TextPart("valText", "valText"),
+    TextPart("infoText", "infoText"),
+    TextPart("mp5Text", "mp5Text", function() return ns.GetStyle("mp5Mode") ~= "off" end),
     { key = "timer",
       regions = function()
           if ns.db.mode == "bar" then return { D().bar2 } end
@@ -115,6 +131,11 @@ local function ApplyPart(p)
         r:ClearAllPoints()
         for _, pt in ipairs(p.base[i]) do r:SetPoint(pt[1], pt[2], pt[3], pt[4] + ox, pt[5] + oy) end
     end
+    -- Platzhalter des Textes folgt mit denselben Ankerpunkten
+    if p.probe then
+        p.probe:ClearAllPoints()
+        for _, pt in ipairs(p.base[1] or {}) do p.probe:SetPoint(pt[1], pt[2], pt[3], pt[4] + ox, pt[5] + oy) end
+    end
 end
 SB.ApplyPart = ApplyPart
 
@@ -130,12 +151,23 @@ function SB:Apply()
                 for n = 1, (r:GetNumPoints() or 0) do pts[n] = { r:GetPoint(n) } end
                 p.base[i] = pts
             end
+            if p.text then
+                if not p.probe then
+                    p.probe = CreateFrame("Frame", nil, D().front)
+                    p.probe:EnableMouse(false)
+                end
+                local _, size = p.regs[1]:GetFont()
+                size = (ns.Readable(size) and size) or 14
+                p.probe:SetSize(size * 3.2, size * 1.25)
+                p.probe:ClearAllPoints()
+                for _, pt in ipairs(p.base[1]) do p.probe:SetPoint(pt[1], pt[2], pt[3], pt[4], pt[5]) end
+            end
         end
         if p.shown() then
             -- Ausgangslage (ohne Verschiebung) bestimmt die Größe der Sandbox
             local ox, oy = 0, 0
             if p.decor then ox, oy = self:Offset("decor") end
-            local l, b, r, t = p.rect()
+            local l, b, r, t = p.rect(p)
             if l then rects[#rects + 1] = { l - ox, b - oy, r - ox, t - oy } end
         end
     end
@@ -222,7 +254,7 @@ function SB:Build()
         h:RegisterForClicks("LeftButtonUp", "RightButtonUp")
         h:SetScript("OnMouseDown", function(_, button)
             if button ~= "LeftButton" then return end
-            local sc = f:GetEffectiveScale()
+            local sc = f:GetEffectiveScale() or 1
             local cx, cy = GetCursorPosition()
             local ox, oy = SB:Offset(p.key)
             SB.drag = { part = p, x = cx / sc, y = cy / sc, ox = ox, oy = oy }
@@ -238,7 +270,14 @@ function SB:Build()
         self.handles[#self.handles + 1] = h
     end
 
-    f:SetScript("OnUpdate", function() SB:OnUpdate() end)
+    f:SetScript("OnUpdate", function()
+        -- Fehler nur einmal melden statt in jedem Bild
+        local ok, err = pcall(SB.OnUpdate, SB)
+        if not ok and not SB.errorShown then
+            SB.errorShown = true
+            ns.ReportError("Sandbox", err)
+        end
+    end)
     f:Hide()
 end
 
@@ -256,7 +295,7 @@ end
 -- Teil verschieben, aber nie über den grünen Rand hinaus
 local function MoveClamped(p, x, y)
     SetOffset(p.key, x, y); ApplyPart(p)
-    local l, b, r, t = p.rect()
+    local l, b, r, t = p.rect(p)
     local sl, sb, sr, st = Rect(SB.frame)
     if not (l and sl) then return end
     local dx, dy = 0, 0
@@ -272,7 +311,7 @@ function SB:OnUpdate()
     local drag = self.drag
     if drag then
         if not IsMouseButtonDown or IsMouseButtonDown("LeftButton") then
-            local sc = self.frame:GetEffectiveScale()
+            local sc = self.frame:GetEffectiveScale() or 1
             local cx, cy = GetCursorPosition()
             MoveClamped(drag.part, math.floor(drag.ox + cx / sc - drag.x + 0.5), math.floor(drag.oy + cy / sc - drag.y + 0.5))
         else
@@ -284,7 +323,7 @@ function SB:OnUpdate()
     for _, h in ipairs(self.handles) do
         local p = h.part
         local l, b, r, t
-        if sl and p.shown() then l, b, r, t = p.rect() end
+        if sl and p.shown() then l, b, r, t = p.rect(p) end
         if l then
             local w, hh = math.max(MIN_W, r - l), math.max(MIN_H, t - b)
             local cx, cy = (l + r) / 2, (b + t) / 2

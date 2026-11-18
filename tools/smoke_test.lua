@@ -352,6 +352,19 @@ do
     assert(#evals > 0, "UnitPowerPercent wird genutzt")
     assert(ns.Display.cv.br and ns.Display.cv.bb, "Farbkurven der Mana-Leiste gebaut")
     st.manaColorMode, st.timerColorMode = "fixed", "fixed"
+    -- Sandbox: Größe eines Textes mit geheimem Inhalt ist geheim -> nicht damit rechnen
+    do
+        local SB, D = ns.Sandbox, ns.Display
+        local sec = function() return setmetatable({}, SMT) end
+        rawset(D.bigText, "GetRect", function() return sec(), sec(), sec(), sec() end)
+        rawset(D.bigText, "IsShown", function() return true end)
+        ns.db.modules.text = true
+        D:Refresh()
+        SB:OnUpdate()
+        SB.drag = { part = SB.parts[1], x = 0, y = 0, ox = 0, oy = 0 }
+        SB:OnUpdate(); SB.drag = nil
+        rawset(D.bigText, "GetRect", nil); rawset(D.bigText, "IsShown", nil)
+    end
     C_CurveUtil, UnitPowerPercent = nil, nil; ns.db.textMode = "both"
     UnitPower, UnitPowerMax, GetManaRegen, issecretvalue = oldUP, oldUPM, oldRegen, nil
     T:Reset()

@@ -630,7 +630,10 @@ function D:Refresh()
     self:Layout()
     self:ApplyColors()
     self:ApplyDecor()
-    if sb then sb:Apply() end
+    if sb then
+        local ok, err = pcall(sb.Apply, sb)   -- die Anordnung darf die Anzeige nie aufhalten
+        if not ok then ns.ReportError("Sandbox", err) end
+    end
     self:UpdateVisibility()
     if ns.Minimap then ns.Minimap:Refresh() end   -- Icon-Farbe folgt dem Thema
     self:Update(GetTime())

@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.5.3 – 2026-11-19
+
+- **Options in combat:** the options (and the edit mode) can now be opened during combat too. Only if the game refuses, they open automatically after combat
+
 ## 1.5.2 – 2026-11-19
 
 - **Fixed:** the tick timer (inner ring / timer bar) kept running all the time when the game hides the mana values – even at full mana. It now stops when no mana tick has arrived for 4.5 seconds, e.g. because your mana is full

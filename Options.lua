@@ -749,16 +749,19 @@ function O:RefreshWidgets()
 end
 
 function O:Open()
-    if InCombatLockdown() then
+    -- Auch im Kampf erlaubt. Sollte das Spiel das Öffnen im Kampf verweigern,
+    -- öffnen sich die Optionen automatisch nach dem Kampf.
+    local ok = pcall(function()
+        if self.category and Settings and Settings.OpenToCategory then
+            local id = self.category.GetID and self.category:GetID() or self.category.ID
+            Settings.OpenToCategory(id)
+        elseif InterfaceOptionsFrame_OpenToCategory then
+            InterfaceOptionsFrame_OpenToCategory(self.panel)
+            InterfaceOptionsFrame_OpenToCategory(self.panel)
+        end
+    end)
+    if not ok and InCombatLockdown() then
         ns.pendingOptions = true
         ns.Print(L.OPTIONS_AFTER_COMBAT)
-        return
-    end
-    if self.category and Settings and Settings.OpenToCategory then
-        local id = self.category.GetID and self.category:GetID() or self.category.ID
-        Settings.OpenToCategory(id)
-    elseif InterfaceOptionsFrame_OpenToCategory then
-        InterfaceOptionsFrame_OpenToCategory(self.panel)
-        InterfaceOptionsFrame_OpenToCategory(self.panel)
     end
 end

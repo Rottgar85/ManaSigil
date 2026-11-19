@@ -7,6 +7,7 @@ ns.Tracker = T
 local FSR_DURATION = 5     -- Sekunden ohne Manaverbrauch bis zur vollen Regeneration
 local TICK_INTERVAL = 2    -- Server-Tick der Mana-Regeneration
 local MIN_TICK_GAP = 1.5   -- kleinere Abstände gelten nicht als neuer Tick (z. B. Tränke)
+local TICK_TIMEOUT = 4.5   -- so lange ohne neuen Tick: Regeneration ruht (z. B. Mana voll), Timer stoppt
 local CAST_WINDOW = 0.5    -- Manaänderung so kurz nach einem Zauber = Verbrauch (bei geheimen Werten)
 
 T.FSR_DURATION = FSR_DURATION
@@ -166,8 +167,10 @@ function T:GetMP5()
 end
 
 -- Fortschritt bis zum nächsten Tick (0..1) oder nil, wenn noch kein Tick bekannt ist
+-- oder seit TICK_TIMEOUT keiner mehr kam (volles Mana, auch bei geheimen Werten)
 function T:TickProgress(now)
     if not self.lastTick then return nil end
     local dt = (now or GetTime()) - self.lastTick
+    if dt > TICK_TIMEOUT then return nil end
     return (dt % TICK_INTERVAL) / TICK_INTERVAL
 end

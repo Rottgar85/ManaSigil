@@ -297,6 +297,7 @@ do
         for _ = 1, 3 do now = now + 2; ev(nil, "UNIT_POWER_UPDATE", "player", "MANA"); upd(nil, 1) end
     end
     assert(T.lastTick == now and T:TickProgress(now + 1) == 0.5, "Tick bei geheimen Werten erkannt")
+    assert(T:TickProgress(now + 5) == nil, "ohne neue Ticks (Mana voll) stoppt der Tick-Timer")
     -- fließende Regeneration: viele FREQUENT-Events dürfen keinen Tick erzeugen
     local tickAt = T.lastTick
     for _ = 1, 15 do now = now + 0.1; ev(nil, "UNIT_POWER_FREQUENT", "player", "MANA") end

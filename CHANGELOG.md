@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.5.2 – 2026-11-19
+
+- **Fixed:** the tick timer (inner ring / timer bar) kept running all the time when the game hides the mana values – even at full mana. It now stops when no mana tick has arrived for 4.5 seconds, e.g. because your mana is full
+
 ## 1.5.1 – 2026-11-18
 
 - **Edit mode with its own button:** "Edit arrangement" in the options (or `/msig edit`) shows the green sandbox. Pressing the button again – or "Save arrangement" above the green area – saves the arrangement and ends the edit mode. The sandbox no longer appears just by opening the options. The arrangement section is now at the very top of the options

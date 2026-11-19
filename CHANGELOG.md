@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.5.4 – 2026-11-19
+
+- **Fixed:** the MP5 line disappeared in combat, because the game hides the regeneration values during combat. It now keeps showing the last known values
+
 ## 1.5.3 – 2026-11-19
 
 - **Options in combat:** the options (and the edit mode) can now be opened during combat too. Only if the game refuses, they open automatically after combat

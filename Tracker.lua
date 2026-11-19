@@ -158,9 +158,13 @@ function T:GetMP5()
         local ok, b, c = pcall(GetManaRegen)
         if ok and ns.Readable(b) and ns.Readable(c) then
             base, casting = b * 5, c * 5
+            self.lastMP5Base, self.lastMP5Cast = base, casting
         end
     end
-    if not base and self.tickAmount then
+    -- Im Kampf hält das Spiel die Regeneration geheim: die letzten lesbaren Werte zeigen
+    if not base then base = self.lastMP5Base end
+    if not casting then casting = self.lastMP5Cast end
+    if not base and ns.Readable(self.tickAmount) and type(self.tickAmount) == "number" then
         base = self.tickAmount * (5 / TICK_INTERVAL)
     end
     return base, casting

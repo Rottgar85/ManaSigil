@@ -227,6 +227,16 @@ end
 st.outerDir = "cw"; SlashCmdList.MANASIGIL("mode pie"); assert(D.outer.n == 90 and D.outer.kind == "pie", "Torte mit 90 Stücken")
 -- MP5: 12 bzw. 3 Mana/Sek. -> 60 / 15 pro 5 Sekunden
 local b5, c5 = ns.Tracker:GetMP5(); assert(b5 == 60 and c5 == 15, "MP5-Berechnung")
+do -- im Kampf liefert das Spiel die Regeneration geheim: letzte lesbare Werte behalten
+    local oldRegen, oldIs = GetManaRegen, issecretvalue
+    local SV = setmetatable({}, { __add = function() error("Rechnen mit geheimem Wert") end,
+        __mul = function() error("Rechnen mit geheimem Wert") end })
+    issecretvalue = function(v) return v == SV end
+    GetManaRegen = function() return SV, SV end
+    local b6, c6 = ns.Tracker:GetMP5()
+    assert(b6 == 60 and c6 == 15, "MP5 bleibt im Kampf sichtbar (geheime Regeneration)")
+    GetManaRegen, issecretvalue = oldRegen, oldIs
+end
 st.mp5Mode = "both"; ns.Tracker:StartFSR()
 local line = D:MP5Line(now); print("MP5-Zeile:", line)
 assert(line:find("60") and line:find("15"), "MP5-Zeile enthält beide Werte")

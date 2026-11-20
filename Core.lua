@@ -236,7 +236,7 @@ ns.gradients = {
 }
 
 -- Warntöne: Schlüssel -> Sound-ID (SOUNDKIT, falls vorhanden)
-ns.warnSoundOrder = { "raid", "ready", "alarm", "whisper", "ping" }
+ns.warnSoundOrder = { "raid", "ready", "alarm", "bell", "whisper", "invite", "questfail", "ping" }
 local function Kit(name, fallback) return (SOUNDKIT and SOUNDKIT[name]) or fallback end
 ns.warnSounds = {
     raid    = Kit("RAID_WARNING", 8959),
@@ -244,6 +244,9 @@ ns.warnSounds = {
     alarm   = Kit("ALARM_CLOCK_WARNING_3", 12889),
     whisper = Kit("TELL_MESSAGE", 3081),
     ping    = Kit("MAP_PING", 3175),
+    bell    = Kit("ALARM_CLOCK_WARNING_2", 12867),
+    invite  = Kit("IG_PLAYER_INVITE", 880),
+    questfail = Kit("IG_QUEST_FAILED", 847),
 }
 function ns.PlayWarnSound(key)
     local id = ns.warnSounds[key or ""]
@@ -431,6 +434,7 @@ local function Debug()
         tostring(ns.db.textMode), tostring(ns.GetStyle("textColorMode")), tostring(ns.GetStyle("warnEnabled")),
         tostring(ns.GetStyle("warnValue")), tostring(ns.GetStyle("warnUnit")), tostring(ns.GetStyle("warnCombatOnly"))))
     ns.Print("selftest: " .. ns.Display:SelfTest())
+    ns.Print("warnsound: " .. (ns.Display:ReadablePercent() and "possible" or "not possible (mana percent is secret)"))
     for _, e in ipairs(ns.errors or {}) do ns.Print("|cffff6060error: " .. e .. "|r") end
     if not ns.errors then ns.Print("errors: -") end
 end

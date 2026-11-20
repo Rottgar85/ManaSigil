@@ -406,6 +406,28 @@ do
         rawset(D.bigText, "SetPoint", nil)
         ns.db.layout[ns.db.mode] = nil; D:Refresh()
     end
+    -- Warnton bei geheimem Mana: geht, wenn das Spiel den Prozentwert lesbar herausgibt
+    do
+        local D, plays = ns.Display, 0
+        local oldPS, oldFrac, oldUPP = PlaySound, secretFrac, UnitPowerPercent
+        PlaySound = function() plays = plays + 1 end
+        st.warnSound, st.warnRepeat, st.warnCombatOnly = "raid", 0, false
+        st.warnUnit, st.warnValue = "percent", 20
+        D:Refresh()
+        -- Prozentwert lesbar
+        UnitPowerPercent = function(_, _, _, curve) return curve:Eval(secretFrac) end
+        secretFrac = 0.9; now = now + 0.1; upd(nil, 1)
+        assert(plays == 0, "kein Ton bei 90 % (geheimes Mana)")
+        secretFrac = 0.1; for _ = 1, 3 do now = now + 0.1; upd(nil, 1) end
+        assert(plays == 1, "Ton bei 10 % trotz geheimem Mana")
+        secretFrac = 0.9; now = now + 0.1; upd(nil, 1)
+        -- Prozentwert ebenfalls geheim: kein Ton, kein Fehler
+        UnitPowerPercent = oldUPP
+        secretFrac = 0.1; for _ = 1, 3 do now = now + 0.1; upd(nil, 1) end
+        assert(plays == 1, "kein Ton, wenn auch der Prozentwert geheim ist")
+        assert(D:ReadablePercent() == nil, "geheimer Prozentwert gilt als nicht lesbar")
+        PlaySound, secretFrac = oldPS, oldFrac
+    end
     C_CurveUtil, UnitPowerPercent = nil, nil; ns.db.textMode = "both"
     UnitPower, UnitPowerMax, GetManaRegen, issecretvalue = oldUP, oldUPM, oldRegen, nil
     T:Reset()

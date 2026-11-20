@@ -770,6 +770,14 @@ local function Eval(curve)
     if ok then return v end
 end
 
+-- Mana-Anteil (0..1) über UnitPowerPercent – nur wenn das Spiel ihn lesbar herausgibt
+function D:ReadablePercent()
+    local p = self.cv and Eval(self.cv.pct)
+    if p ~= nil and ns.Readable(p) and type(p) == "number" then
+        return max(0, min(1, p / 100))
+    end
+end
+
 -- Für /msig debug: prüft jeden Schritt der Anzeige bei geheimen Werten einzeln
 function D:SelfTest()
     local out = {}
@@ -929,8 +937,17 @@ function D:Update(now)
         if frac > 1 then frac = 1 end
     end
     local r, g, b = ns.GetColor("ring")
-    local low = self:IsLowMana(cur, frac, readable)
-    self:UpdateWarning(now, low, cur, frac, readable)
+    -- Für die Warnung: bei geheimem Mana den Prozentwert vom Spiel holen, falls er lesbar ist
+    local wcur, wfrac, wread = cur, frac, readable
+    if not readable then
+        wfrac = self:ReadablePercent()
+        if wfrac then
+            wread = true
+            wcur = ns.Readable(maxMana) and wfrac * maxMana or 0
+        end
+    end
+    local low = self:IsLowMana(wcur, wfrac, wread)
+    self:UpdateWarning(now, low, wcur, wfrac, wread)
     if readable and st("manaColorMode") == "gradient" then r, g, b = self:GradientColor(frac, "mana") end
     local showSpark = mods.spark and mods.ring and readable and frac > 0 and frac < 1
 

@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.6.0 – 2026-11-20
+
+- **Warning sound with hidden mana values:** when the game hides your mana, ManaSigil now asks it for the mana percentage instead, so the warning sound can still play below your threshold – if the game gives that percentage out. `/msig debug` shows "warnsound: possible" or "not possible"
+- **More warning sounds:** bell, group invite and quest failed, in addition to raid warning, ready check, alarm clock, whisper and map ping
+
 ## 1.5.4 – 2026-11-19
 
 - **Fixed:** the MP5 line disappeared in combat, because the game hides the regeneration values during combat. It now keeps showing the last known values

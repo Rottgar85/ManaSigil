@@ -605,6 +605,10 @@ function O:Build()
     end)
     testBtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
     y = y - 30
+    Slider(c, L.O_WARN_VOLUME, 20, y, 0, 100, 5, function(v) return string.format("%d %%", v) end,
+        SG("warnVolume"), function(v) style().warnVolume = v end, L.TIP_WARN_VOLUME,
+        function() return style().warnEnabled and style().warnSound ~= "off" end)
+    y = y - 32
     Slider(c, L.O_WARN_REPEAT, 20, y, 0, 30, 1, function(v) return v == 0 and L.ONCE or string.format("%d s", v) end,
         SG("warnRepeat"), SS("warnRepeat"), L.TIP_WARN_REPEAT,
         function() return style().warnEnabled and style().warnSound ~= "off" end)

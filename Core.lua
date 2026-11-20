@@ -98,6 +98,7 @@ ns.defaults = {
         warnBlink     = "text",    -- off | text | all
         warnSound     = "raid",    -- off oder ein Schlüssel aus ns.warnSounds
         warnRepeat    = 0,         -- Ton alle x Sekunden wiederholen (0 = nur einmal)
+        warnVolume    = 100,       -- Lautstärke des Warntons in % (relativ zur Gesamtlautstärke)
         warnCombatOnly = false,    -- nur im Kampf warnen
     },
     colors = {},            -- eigene Farben (siehe ns.colorKeys)
@@ -235,10 +236,21 @@ ns.gradients = {
     timer = { "timerHigh", "timerMid", "timerLow", "timerGradMid" },
 }
 
--- Warntöne: Schlüssel -> Sound-ID (SOUNDKIT, falls vorhanden)
-ns.warnSoundOrder = { "raid", "ready", "alarm", "bell", "whisper", "invite", "questfail", "ping" }
+-- Warntöne: Schlüssel -> Sound-ID (SOUNDKIT des Spiels) oder eigene Datei (Media/snd_*.ogg)
+ns.warnSoundOrder = { "horn", "airhorn", "siren", "alarm2", "buzzer", "beeps", "chime",
+                      "raid", "ready", "alarm", "bell", "whisper", "invite", "questfail", "ping" }
 local function Kit(name, fallback) return (SOUNDKIT and SOUNDKIT[name]) or fallback end
+local MEDIA = "Interface\\AddOns\\" .. addonName .. "\\Media\\"
 ns.warnSounds = {
+    -- eigene Töne (tools/make_sounds.py)
+    horn    = MEDIA .. "snd_horn.ogg",
+    airhorn = MEDIA .. "snd_airhorn.ogg",
+    siren   = MEDIA .. "snd_siren.ogg",
+    alarm2  = MEDIA .. "snd_alarm2.ogg",
+    buzzer  = MEDIA .. "snd_buzzer.ogg",
+    beeps   = MEDIA .. "snd_beeps.ogg",
+    chime   = MEDIA .. "snd_chime.ogg",
+    -- Töne des Spiels
     raid    = Kit("RAID_WARNING", 8959),
     ready   = Kit("READY_CHECK", 8960),
     alarm   = Kit("ALARM_CLOCK_WARNING_3", 12889),
@@ -248,9 +260,50 @@ ns.warnSounds = {
     invite  = Kit("IG_PLAYER_INVITE", 880),
     questfail = Kit("IG_QUEST_FAILED", 847),
 }
-function ns.PlayWarnSound(key)
-    local id = ns.warnSounds[key or ""]
-    if id and PlaySound then pcall(PlaySound, id, "Master") end
+
+-- Lautstärke: Das Spiel kennt keine Lautstärke pro Ton. Der Warnton läuft daher über den
+-- Kanal "Dialog", dessen Lautstärke ManaSigil kurz auf den gewünschten Wert setzt und
+-- danach zurückstellt. Wird das unterbrochen (z. B. /reload), stellt der nächste Login
+-- die alten Werte wieder her (ns.db.soundRestore).
+local RESTORE_AFTER = 3
+local soundToken = 0
+
+function ns.RestoreSoundCVars()
+    local r = ns.db and ns.db.soundRestore
+    if not r then return end
+    if r.vol then pcall(SetCVar, "Sound_DialogVolume", r.vol) end
+    if r.en then pcall(SetCVar, "Sound_EnableDialog", r.en) end
+    ns.db.soundRestore = nil
+end
+
+local function Play(snd, channel)
+    if type(snd) == "string" then
+        if PlaySoundFile then return pcall(PlaySoundFile, snd, channel) end
+    elseif PlaySound then
+        return pcall(PlaySound, snd, channel)
+    end
+    return false
+end
+
+function ns.PlayWarnSound(key, volume)
+    local snd = ns.warnSounds[key or ""]
+    if not snd then return end
+    volume = tonumber(volume) or ns.GetStyle("warnVolume") or 100
+    volume = math.max(0, math.min(100, volume))
+    local canVolume = GetCVar and SetCVar and C_Timer and C_Timer.After and ns.db
+        and GetCVar("Sound_DialogVolume") ~= nil
+    if not canVolume then Play(snd, "Master"); return end
+    if not ns.db.soundRestore then
+        ns.db.soundRestore = { vol = GetCVar("Sound_DialogVolume"), en = GetCVar("Sound_EnableDialog") }
+    end
+    pcall(SetCVar, "Sound_EnableDialog", "1")
+    pcall(SetCVar, "Sound_DialogVolume", string.format("%.2f", volume / 100))
+    if not Play(snd, "Dialog") then Play(snd, "Master") end
+    soundToken = soundToken + 1
+    local mine = soundToken
+    C_Timer.After(RESTORE_AFTER, function()
+        if mine == soundToken then ns.RestoreSoundCVars() end
+    end)
 end
 
 function ns.GetColor(name)
@@ -340,6 +393,7 @@ function handlers.PLAYER_LOGIN()
     events:RegisterUnitEvent("UNIT_POWER_UPDATE", "player")
     events:RegisterUnitEvent("UNIT_POWER_FREQUENT", "player")
     events:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player")
+    Safe("Sound", ns.RestoreSoundCVars)     -- falls ein Warnton beim letzten Mal unterbrochen wurde
     Safe("Tracker", ns.Tracker.Init, ns.Tracker)
     Safe("Display", ns.Display.Build, ns.Display)
     Safe("Sandbox", ns.Sandbox.Build, ns.Sandbox)

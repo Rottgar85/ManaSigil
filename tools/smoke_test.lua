@@ -547,6 +547,42 @@ do
     T:Reset()
 end
 
+-- Warntöne: eigene Dateien, Lautstärke über den Dialog-Kanal, alte Werte zurück
+do
+    local cvars = { Sound_DialogVolume = "0.3", Sound_EnableDialog = "0" }
+    local timers, files, kits = {}, {}, {}
+    GetCVar = function(k) return cvars[k] end
+    SetCVar = function(k, v) cvars[k] = tostring(v) end
+    C_Timer = { After = function(_, fn) timers[#timers + 1] = fn end }
+    PlaySoundFile = function(f, ch) files[#files + 1] = { f, ch, cvars.Sound_DialogVolume }; return true end
+    PlaySound = function(id, ch) kits[#kits + 1] = { id, ch }; return true end
+    ns.PlayWarnSound("horn", 40)
+    assert(files[1] and files[1][1]:find("snd_horn.ogg", 1, true) and files[1][2] == "Dialog" and files[1][3] == "0.40",
+        "Hupe als eigene Datei mit 40 % über den Dialog-Kanal")
+    assert(cvars.Sound_EnableDialog == "1", "Dialog-Kanal kurz eingeschaltet")
+    ns.PlayWarnSound("raid", 100)
+    assert(kits[1] and kits[1][2] == "Dialog" and cvars.Sound_DialogVolume == "1.00", "Spielton mit voller Lautstärke")
+    timers[1]()     -- veralteter Timer stellt nicht zu früh zurück
+    assert(cvars.Sound_DialogVolume == "1.00", "erster Timer wartet auf den zweiten Ton")
+    timers[2]()
+    assert(cvars.Sound_DialogVolume == "0.3" and cvars.Sound_EnableDialog == "0" and not ns.db.soundRestore,
+        "alte Lautstärke wiederhergestellt")
+    -- unterbrochen (z. B. /reload): beim Login zurückstellen
+    ns.PlayWarnSound("siren", 70)
+    assert(ns.db.soundRestore, "alte Werte gemerkt")
+    ns.RestoreSoundCVars()
+    assert(cvars.Sound_DialogVolume == "0.3" and cvars.Sound_EnableDialog == "0", "Login stellt zurück")
+    for _, k in ipairs(ns.warnSoundOrder) do
+        assert(ns.warnSounds[k] and ns.L.SOUNDS[k], "Ton mit Namen: " .. k)
+        if type(ns.warnSounds[k]) == "string" then
+            local path = ns.warnSounds[k]:match("Media.+$"):gsub("\\", "/")
+            local f = io.open(path, "rb")
+            assert(f, "Datei fehlt: " .. ns.warnSounds[k]); f:close()
+        end
+    end
+    GetCVar, SetCVar, C_Timer, PlaySoundFile, PlaySound = nil, nil, nil, nil, nil
+end
+
 -- Übersetzung: alle Schlüssel der englischen Tabelle müssen auch in der aktiven Sprache existieren
 print("Sprache", GetLocale(), "Thema angel =", ns.themes.angel.name, "| Symbol skull =", ns.shapeNames.skull)
 assert(ns.L.H_THEME ~= "H_THEME" and ns.L.COLORS.ring and ns.L.MODULES.rim, "Übersetzung fehlt")

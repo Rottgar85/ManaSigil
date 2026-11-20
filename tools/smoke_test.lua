@@ -509,6 +509,44 @@ do
     ns.Options.IsOpen = oldOpen; rawset(D.frame, "IsShown", oldIsShown)
 end
 
+-- Geschätztes Mana: Mana und Prozentwert geheim, Maximum, Regeneration und Zauberkosten lesbar
+do
+    local T, D = ns.Tracker, ns.Display
+    local SMT = { __lt = function() error("secret value used", 2) end, __add = function() error("secret value used", 2) end }
+    local oldUP, oldUPM, oldPS, oldRegen = UnitPower, UnitPowerMax, PlaySound, GetManaRegen
+    local plays = 0
+    issecretvalue = function(v) return getmetatable(v) == SMT end
+    UnitPower = function() return setmetatable({}, SMT) end
+    UnitPowerMax = function() return 1000 end
+    GetManaRegen = function() return 20, 2 end              -- 100 / 10 MP5 -> 40 / 4 Mana je Tick
+    PlaySound = function() plays = plays + 1 end
+    C_Spell = { GetSpellPowerCost = function(id)
+        if id == 7 then return { { type = 0, cost = 400 } } end
+        if id == 8 then return { { type = 0, cost = setmetatable({}, SMT) } } end
+    end }
+    st.warnEnabled, st.warnUnit, st.warnValue, st.warnSound, st.warnRepeat, st.warnCombatOnly = true, "percent", 25, "raid", 0, false
+    D:Refresh(); D.warnArmed = true
+    T:Reset()
+    assert(T.secret and T:EstimatedFraction() == nil, "Schätzung erst unbekannt")
+    now = now + 5; upd(nil, 1)
+    assert(T:EstimatedFraction() == 1, "keine Ticks -> volles Mana angenommen")
+    assert(plays == 0, "kein Ton bei vollem Mana")
+    ev(nil, "UNIT_SPELLCAST_SUCCEEDED", "player", "g", 7); now = now + 0.1; upd(nil, 1)
+    ev(nil, "UNIT_SPELLCAST_SUCCEEDED", "player", "g", 7); now = now + 0.1; upd(nil, 1)
+    assert(math.abs(T:EstimatedFraction() - 0.2) < 1e-9, "Zauberkosten abgezogen")
+    assert(plays == 1, "Ton unter 25 % (geschätzt)")
+    now = now + 6; ev(nil, "UNIT_POWER_UPDATE", "player", "MANA"); upd(nil, 1)
+    assert(math.abs(T.est - 240) < 1e-9, "Tick addiert die Regeneration")
+    ev(nil, "UNIT_SPELLCAST_SUCCEEDED", "player", "g", 8); now = now + 0.1; upd(nil, 1)
+    assert(T:EstimatedFraction() == nil, "geheime Kosten -> Schätzung verworfen")
+    now = now + 10; upd(nil, 1)
+    assert(T:EstimatedFraction() == 1, "nach Ruhe wieder voll")
+    SlashCmdList.MANASIGIL("debug")
+    ns.Options:RefreshWidgets()
+    UnitPower, UnitPowerMax, PlaySound, GetManaRegen, issecretvalue, C_Spell = oldUP, oldUPM, oldPS, oldRegen, nil, nil
+    T:Reset()
+end
+
 -- Übersetzung: alle Schlüssel der englischen Tabelle müssen auch in der aktiven Sprache existieren
 print("Sprache", GetLocale(), "Thema angel =", ns.themes.angel.name, "| Symbol skull =", ns.shapeNames.skull)
 assert(ns.L.H_THEME ~= "H_THEME" and ns.L.COLORS.ring and ns.L.MODULES.rim, "Übersetzung fehlt")

@@ -595,6 +595,15 @@ function O:Build()
     for _, k in ipairs(ns.warnSoundOrder) do soundValues[#soundValues + 1] = k end
     Cycler(c, L.O_WARN_SOUND, 20, y, function() return soundValues end, Lookup(L.SOUNDS),
         SG("warnSound"), function(v) style().warnSound = v; ns.PlayWarnSound(v) end, L.TIP_WARN_SOUND, warnOn)
+    local testBtn = Button(c, L.O_WARN_TEST, 515, y + 2, 95, function() ns.PlayWarnSound(style().warnSound) end)
+    testBtn:SetFrameLevel(c:GetFrameLevel() + 5)
+    testBtn:SetScript("OnEnter", function(s)
+        GameTooltip:SetOwner(s, "ANCHOR_RIGHT")
+        GameTooltip:AddLine(L.O_WARN_TEST, 1, 0.82, 0)
+        GameTooltip:AddLine(L.TIP_WARN_TEST, 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+    testBtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
     y = y - 30
     Slider(c, L.O_WARN_REPEAT, 20, y, 0, 30, 1, function(v) return v == 0 and L.ONCE or string.format("%d s", v) end,
         SG("warnRepeat"), SS("warnRepeat"), L.TIP_WARN_REPEAT,

@@ -23,6 +23,8 @@ function T:Reset()
     self.tickAmount = nil
     self.lastMana   = nil
     self.secret     = false
+    self.est        = nil      -- geschätztes Mana bei geheimen Werten (nil = unbekannt)
+    self.resetTime  = GetTime()
     self:OnPower()
 end
 
@@ -69,11 +71,15 @@ function T:OnPower(event)
         if self.lastCast and now - self.lastCast < CAST_WINDOW then
             if now >= self.fsrEnd then self:StartFSR(now) end
         elseif now >= self.fsrEnd then
-            self:RegisterTick(now, nil)
+            if self:RegisterTick(now, nil) then self:AddEstimate("base") end
+        elseif not self.lastFsrTick or now - self.lastFsrTick >= MIN_TICK_GAP then
+            self.lastFsrTick = now         -- Tick während der 5-Sek.-Regel (Zauber-Regeneration)
+            self:AddEstimate("cast")
         end
         return
     end
     self.secret = false
+    self.est = cur
     local last = self.lastMana
     if last then
         if cur < last then
@@ -87,7 +93,7 @@ end
 
 -- Tick merken (Abstände der letzten Ticks für /msig debug)
 function T:RegisterTick(now, amount)
-    if self.lastTick and (now - self.lastTick) < MIN_TICK_GAP then return end
+    if self.lastTick and (now - self.lastTick) < MIN_TICK_GAP then return false end
     if self.lastTick then
         self.gaps = self.gaps or {}
         table.insert(self.gaps, 1, now - self.lastTick)
@@ -96,10 +102,67 @@ function T:RegisterTick(now, amount)
     self.lastTick = now
     if amount then self.tickAmount = amount end
     ns.Display:OnTick(amount)
+    return true
+end
+
+-- Geschätztes Mana ----------------------------------------------------------------
+-- Verbirgt das Spiel Mana und Prozentwert, rechnet ManaSigil selbst mit:
+-- voll, sobald keine Ticks mehr kommen; minus lesbare Zauberkosten; plus Regeneration je Tick.
+local function MaxMana()
+    local mx = UnitPowerMax("player", ns.MANA)
+    if ns.Readable(mx) and type(mx) == "number" and mx > 0 then return mx end
+end
+
+function T:AddEstimate(kind)
+    if not self.est then return end
+    local base, cast = self:GetMP5()
+    local per5 = (kind == "cast") and cast or base
+    local mx = MaxMana()
+    if not (per5 and mx) then return end
+    self.est = math.min(mx, self.est + per5 * TICK_INTERVAL / 5)
+end
+
+-- regelmäßig aufrufen: erkennt volles Mana (lange kein Tick, außerhalb der 5-Sek.-Regel)
+function T:UpdateEstimate(now)
+    if not self.secret then return end
+    now = now or GetTime()
+    local quietSince = math.max(self.lastTick or 0, self.fsrEnd or 0, self.lastCast or 0, self.resetTime or 0)
+    if now - quietSince > TICK_TIMEOUT then
+        local mx = MaxMana()
+        if mx then self.est = mx end
+    end
+end
+
+-- geschätzter Mana-Anteil 0..1 oder nil
+function T:EstimatedFraction()
+    local mx = MaxMana()
+    if not (self.est and mx) then return nil end
+    return math.max(0, math.min(1, self.est / mx))
 end
 
 -- Kostet der Zauber Mana? true = ja, false = sicher nicht (Reittier, Nahkampf,
 -- Wut/Energie), nil = unbekannt (Kosten nicht abfragbar)
+-- Manakosten eines Zaubers als Zahl, wenn lesbar; sonst nil
+local function SpellManaCost(spellID)
+    local getter = (C_Spell and C_Spell.GetSpellPowerCost) or GetSpellPowerCost
+    if not getter or not spellID then return nil end
+    local ok, total = pcall(function()
+        local costs = getter(spellID)
+        if type(costs) ~= "table" then return nil end
+        local sum, found = 0, false
+        for _, c in ipairs(costs) do
+            if ns.Readable(c.type) and c.type == ns.MANA then
+                local v = c.cost
+                if not (ns.Readable(v) and type(v) == "number") then return nil end
+                sum, found = sum + v, true
+            end
+        end
+        return found and sum or nil
+    end)
+    if ok then return total end
+end
+T.SpellManaCost = SpellManaCost
+
 local function SpellCostsMana(spellID)
     local getter = (C_Spell and C_Spell.GetSpellPowerCost) or GetSpellPowerCost
     if not getter or not spellID then return nil end
@@ -133,11 +196,20 @@ function T:OnSpellCast(spellID)
     if costs == nil then
         -- Kosten unbekannt: die nächste Manaänderung entscheidet (siehe OnPower)
         self.lastCast = GetTime()
+        if self.secret then self.est = nil end
         return
     end
     self.lastCast = GetTime()
     -- Bei lesbaren Werten erkennt OnPower den Verbrauch zuverlässiger (z. B. Freizauber).
-    if self.secret then self:StartFSR() end
+    if self.secret then
+        self:StartFSR()
+        local cost = SpellManaCost(spellID)
+        if self.est and cost then
+            self.est = math.max(0, self.est - cost)
+        else
+            self.est = nil          -- Kosten unbekannt: Schätzung erst bei vollem Mana wieder
+        end
+    end
 end
 
 -- Abfragen für die Anzeige ---------------------------------------------------

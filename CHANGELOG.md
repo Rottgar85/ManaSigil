@@ -2,7 +2,8 @@
 
 ## 1.6.0 – 2026-11-20
 
-- **Warning sound with hidden mana values:** when the game hides your mana, ManaSigil now asks it for the mana percentage instead, so the warning sound can still play below your threshold – if the game gives that percentage out. `/msig debug` shows "warnsound: possible" or "not possible"
+- **Warning sound at your percentage, even with hidden mana values:** if the game hides your mana (and its percentage), ManaSigil now calculates your mana itself for the warning sound: full when no more mana ticks arrive, minus the cost of each spell, plus regeneration per tick. Potions or free casts can make the sound a little early or late; the calculation corrects itself at full mana. `/msig debug` shows the estimated mana in the "warnsound" line
+- **"Test sound" button** next to the warning sound, to hear it once
 - **More warning sounds:** bell, group invite and quest failed, in addition to raid warning, ready check, alarm clock, whisper and map ping
 
 ## 1.5.4 – 2026-11-19

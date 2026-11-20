@@ -937,10 +937,12 @@ function D:Update(now)
         if frac > 1 then frac = 1 end
     end
     local r, g, b = ns.GetColor("ring")
-    -- Für die Warnung: bei geheimem Mana den Prozentwert vom Spiel holen, falls er lesbar ist
+    -- Für die Warnung: bei geheimem Mana den Prozentwert vom Spiel holen, falls er lesbar ist,
+    -- sonst das selbst mitgerechnete Mana (Tracker:EstimatedFraction)
     local wcur, wfrac, wread = cur, frac, readable
     if not readable then
-        wfrac = self:ReadablePercent()
+        T:UpdateEstimate(now)
+        wfrac = self:ReadablePercent() or T:EstimatedFraction()
         if wfrac then
             wread = true
             wcur = ns.Readable(maxMana) and wfrac * maxMana or 0

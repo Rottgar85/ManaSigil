@@ -434,7 +434,10 @@ local function Debug()
         tostring(ns.db.textMode), tostring(ns.GetStyle("textColorMode")), tostring(ns.GetStyle("warnEnabled")),
         tostring(ns.GetStyle("warnValue")), tostring(ns.GetStyle("warnUnit")), tostring(ns.GetStyle("warnCombatOnly"))))
     ns.Print("selftest: " .. ns.Display:SelfTest())
-    ns.Print("warnsound: " .. (ns.Display:ReadablePercent() and "possible" or "not possible (mana percent is secret)"))
+    local estF = ns.Tracker:EstimatedFraction()
+    ns.Print("warnsound: " .. (ns.Display:ReadablePercent() and "percent readable"
+        or (estF and string.format("estimated mana %.0f%%", estF * 100))
+        or "estimate pending (waits for full mana)"))
     for _, e in ipairs(ns.errors or {}) do ns.Print("|cffff6060error: " .. e .. "|r") end
     if not ns.errors then ns.Print("errors: -") end
 end

@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.8.0 – 2026-11-21
+
+- **Mana preview inside the mana bar:** while you cast, the mana bar (or ring / pie) already shows your mana after the spell – the bar gets shorter and the numbers show the lower value. The part the spell costs stays as a pale, pulsing gold shadow. The extra line above the display now only appears for "Not enough mana!"
+- **Mana preview in combat, too:** when the game hides your mana values, the game itself now calculates "mana minus spell cost" for the bar and the numbers, so the preview stays exact (in ring / pie mode it shows in the backup bar)
+- **Options with tabs:** General, Look, Bars, Text, Colors, Warning and Modules instead of one long list
+- **8 new bar textures:** gloss, glass tube, bevel, soft, light stripe, stripes, segments and grain (11 in total)
+- **Separate background colors:** the empty part of the mana display and of the timer bar / inner ring each have their own color ("Empty part: mana" / "Empty part: timer")
+- **Background behind MP5:** optional colored box behind the MP5 line, with its own color and opacity
+
 ## 1.7.0 – 2026-11-21
 
 - **Mana preview while casting:** while you cast a spell, ManaSigil shows how much mana you will have left afterwards, e.g. "After cast: 1700 (43%)" above the display. The part of the ring, pie or bar the spell will cost pulses gold. If you do not have enough mana, it says "Not enough mana!". With hidden mana values the number is estimated (marked with "~"). Can be switched off under Modules ("Mana preview while casting"); its color is "Mana preview" under Colors, and the text can be moved in the edit mode

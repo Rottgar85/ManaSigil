@@ -428,6 +428,34 @@ do
         assert(D:ReadablePercent() == nil, "geheimer Prozentwert gilt als nicht lesbar")
         PlaySound, secretFrac = oldPS, oldFrac
     end
+    -- Manavorschau bei geheimem Mana und geheimem Prozentwert: Kurven "Anteil minus Kosten"
+    do
+        local D = ns.Display
+        local oldUPM2 = UnitPowerMax
+        UnitPowerMax = function() return 1000 end
+        C_Spell = { GetSpellPowerCost = function() return { { type = 0, cost = 300 } } end }
+        ns.db.modules.castPreview, ns.db.modules.fallback = true, true
+        local pc = D:PreviewCurves(300, 1000)
+        assert(pc and math.abs(pc.frac:Eval(0.5) - 0.2) < 1e-9 and pc.frac:Eval(0.2) == 0
+            and math.abs(pc.pct:Eval(0.5) - 20) < 1e-9 and math.abs(pc.val:Eval(0.5) - 200) < 1e-9,
+            "Vorschau-Kurven: 50 % - 300 von 1000 = 20 %")
+        secretFrac = 0.5
+        local afterVal, fbVal
+        rawset(D.barAfter, "SetValue", function(_, v) afterVal = v end)
+        rawset(D.fallbackAfter, "SetValue", function(_, v) fbVal = v end)
+        ev(nil, "UNIT_SPELLCAST_START", "player", "g", 7)
+        for _, mode in ipairs({ "bar", "ring" }) do
+            for _, tm in ipairs({ "percent", "value", "both" }) do
+                ns.db.textMode = tm
+                SlashCmdList.MANASIGIL("mode " .. mode); upd(nil, 1)
+            end
+        end
+        ev(nil, "UNIT_SPELLCAST_STOP", "player", "g", 7); upd(nil, 1)
+        assert(afterVal and math.abs(afterVal.v - 0.2) < 1e-9, "Balken: Stand nach dem Zauber vom Spiel gerechnet")
+        assert(fbVal and math.abs(fbVal.v - 0.2) < 1e-9, "Ersatzbalken im Ring-Modus ebenso")
+        rawset(D.barAfter, "SetValue", nil); rawset(D.fallbackAfter, "SetValue", nil)
+        UnitPowerMax, C_Spell, secretFrac = oldUPM2, nil, 0.1
+    end
     C_CurveUtil, UnitPowerPercent = nil, nil; ns.db.textMode = "both"
     UnitPower, UnitPowerMax, GetManaRegen, issecretvalue = oldUP, oldUPM, oldRegen, nil
     T:Reset()
@@ -567,8 +595,23 @@ do
     assert(T:CastPreview() == 300, "Kosten des laufenden Zaubers")
     local line, cut, cur = D:CastPreview(2000, 4000, 0.5, true)
     assert(line:find("1700", 1, true) and math.abs(cut - 0.425) < 1e-9 and cur == 0.5, "Mana nach dem Zauber")
+    -- Balken-Modus: Leiste und Zahl zeigen den Stand NACH dem Zauber (weniger), Zeile darüber aus
+    ns.db.mode = "bar"; ns.db.textMode = "percent"; D:Refresh()
+    local barVal, afterVal, afterShown, bigTxt, castShown
+    rawset(D.bar, "SetValue", function(_, v) barVal = v end)
+    rawset(D.barAfter, "SetValue", function(_, v) afterVal = v end)
+    rawset(D.barAfter, "Show", function() afterShown = true end)
+    rawset(D.bigText, "SetText", function(_, t) bigTxt = t end)
+    rawset(D.castText, "Show", function() castShown = true end)
+    rawset(D.castText, "Hide", function() castShown = false end)
     upd(nil, 1)
-    assert(D.castText:IsShown() ~= false, "Vorschau-Text sichtbar")
+    assert(afterShown and math.abs(afterVal - 0.425) < 1e-9, "Mana-Leiste zeigt weniger: " .. tostring(afterVal))
+    assert(barVal == 2000, "darunter bleibt der jetzige Stand als Schatten")
+    assert(bigTxt == "43%", "Zahl nach dem Zauber: " .. tostring(bigTxt))
+    assert(castShown == false, "keine Extra-Zeile über der Anzeige")
+    rawset(D.bar, "SetValue", nil)
+    for _, k in ipairs({ "SetValue", "Show" }) do rawset(D.barAfter, k, nil) end
+    for _, k in ipairs({ "SetText", "Show", "Hide" }) do rawset(D.bigText, k, nil); rawset(D.castText, k, nil) end
     ev(nil, "UNIT_SPELLCAST_STOP", "player", "g", 7)
     assert(T:CastPreview() == nil, "Zauber beendet -> Vorschau weg")
     ev(nil, "UNIT_SPELLCAST_START", "player", "g", 9)
@@ -622,6 +665,51 @@ do
 end
 
 -- Übersetzung: alle Schlüssel der englischen Tabelle müssen auch in der aktiven Sprache existieren
+-- Getrennte Farben: leerer Teil Mana / Timer, Kästchen hinter MP5
+do
+    local D = ns.Display
+    local a = { ns.GetColor("empty") }
+    local b = { ns.GetColor("timerEmpty") }
+    assert(a[1] == b[1] and a[2] == b[2] and a[3] == b[3], "Timer-Leerteil wie Mana, solange nicht eingestellt")
+    ns.db.colors.timerEmpty = { 0.1, 0.2, 0.33 }
+    assert(select(3, ns.GetColor("timerEmpty")) == 0.33 and select(3, ns.GetColor("empty")) ~= 0.33, "Timer-Leerteil eigene Farbe")
+    local col
+    rawset(D.bar2Empty, "SetVertexColor", function(_, r, g, bb) col = { r, g, bb } end)
+    ns.db.mode = "bar"; D:Refresh()
+    assert(col and col[3] == 0.33, "Timer-Leiste nutzt die eigene Leerfarbe")
+    rawset(D.bar2Empty, "SetVertexColor", nil)
+    ns.db.colors.timerEmpty = nil
+    local shown, alpha
+    rawset(D.mp5Bg, "Show", function() shown = true end)
+    rawset(D.mp5Bg, "Hide", function() shown = false end)
+    rawset(D.mp5Bg, "SetVertexColor", function(_, _, _, _, al) alpha = al end)
+    ns.db.modules.text = true; st.mp5Mode = "current"; st.mp5Bg = false; upd(nil, 1)
+    assert(shown == false, "MP5-Kästchen standardmäßig aus")
+    st.mp5Bg, st.mp5BgAlpha = true, 0.4; ns.db.colors.mp5bg = { 0.2, 0, 0 }; upd(nil, 1)
+    assert(shown == true and alpha == 0.4, "MP5-Kästchen mit eigener Farbe und Deckkraft")
+    for _, k in ipairs({ "Show", "Hide", "SetVertexColor" }) do rawset(D.mp5Bg, k, nil) end
+    st.mp5Bg, ns.db.colors.mp5bg = false, nil
+    ns.db.mode = "ring"; D:Refresh()
+end
+
+-- Balkentexturen und Reiter im Menü
+do
+    local D, used = ns.Display, {}
+    rawset(D.bar, "SetStatusBarTexture", function(_, t) used[#used + 1] = t end)
+    ns.db.mode = "bar"
+    for _, k in ipairs(ns.barTextureOrder) do
+        st.barTexture = k; D:Refresh()
+        assert(type(used[#used]) == "string" and used[#used] ~= "", "Textur " .. k)
+        assert(ns.L.BAR_TEXTURES[k], "Name der Textur " .. k)
+    end
+    assert(used[#used]:find("bar_grain", 1, true) or used[#used]:find("UI%-StatusBar"), "eigene Datei oder Spielgrafik")
+    st.barTexture = "gloss"; D:Refresh()
+    assert(used[#used]:find("bar_gloss", 1, true), "eigene Textur aus Media")
+    rawset(D.bar, "SetStatusBarTexture", nil); st.barTexture = "smooth"; ns.db.mode = "ring"; D:Refresh()
+    for i = 1, 7 do ns.Options:SelectTab(i); assert(ns.Options.tab == i, "Reiter " .. i) end
+    ns.Options:SelectTab(1)
+end
+
 print("Sprache", GetLocale(), "Thema angel =", ns.themes.angel.name, "| Symbol skull =", ns.shapeNames.skull)
 assert(ns.L.H_THEME ~= "H_THEME" and ns.L.COLORS.ring and ns.L.MODULES.rim, "Übersetzung fehlt")
 print("ALLES OK")

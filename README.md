@@ -18,8 +18,9 @@
 
 ## Features
 
-- **Three display modes** – Ring, Pie or Bar
-- **Mana preview while casting** – shows how much mana you have left after the spell you are casting; the cost pulses gold on the ring, pie or bar
+- **Three display modes** – Ring, Pie or Bar, with 11 bar textures
+- **Clear options** – tabs for General, Look, Bars, Text, Colors, Warning and Modules
+- **Mana preview while casting** – the mana bar already shows your mana after the spell you are casting (also in combat with hidden mana values); the cost stays as a pale gold shadow
 - **MP5 display** – your mana regeneration per 5 seconds, normal and during the five-second rule
 - **Color gradient & low mana warning** – numbers go green → yellow → red; below a threshold you choose (percent or mana) they blink and a warning sound of your choice plays (17 sounds incl. horn, siren and ICQ uh-oh, adjustable volume, test button, optionally repeated every few seconds; with hidden mana values ManaSigil estimates your mana for the sound)
 - **Bar colors** – the mana bar and the timer bar each get their own fixed color or their own color gradient, independent of the numbers

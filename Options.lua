@@ -379,22 +379,63 @@ function O:Build()
     self.panel = panel
 
     local scroll = CreateFrame("ScrollFrame", nil, panel, "UIPanelScrollFrameTemplate")
-    scroll:SetPoint("TOPLEFT", 0, -4)
+    scroll:SetPoint("TOPLEFT", 0, -100)
     scroll:SetPoint("BOTTOMRIGHT", -28, 4)
-    local c = CreateFrame("Frame", nil, scroll)
-    c:SetSize(640, 100)
-    scroll:SetScrollChild(c)
+    local c, y            -- aktuelle Seite und Zeilenposition (setzt Page)
 
     local function SG(key) return function() return style()[key] end end
     local function SS(key) return function(v) style()[key] = v end end
-    local y = -12
 
-    local title = c:CreateFontString(nil, "ARTWORK", "GameFontNormalHuge")
-    title:SetPoint("TOPLEFT", 16, y)
+    -- Titel und Reiter liegen fest über dem Bildlauf; jeder Reiter hat eine eigene Seite
+    local title = panel:CreateFontString(nil, "ARTWORK", "GameFontNormalHuge")
+    title:SetPoint("TOPLEFT", 16, -12)
     title:SetText("|cff7fb2ffMana|r|cffffd166Sigil|r")
-    local sub = Label(c, L.OPT_SUBTITLE, 16, y - 30, "GameFontHighlightSmall")
+    local sub = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    sub:SetPoint("TOPLEFT", 16, -42)
     sub:SetWidth(600); sub:SetJustifyH("LEFT")
-    y = y - 64
+    sub:SetText(L.OPT_SUBTITLE)
+
+    local pages, tabButtons = {}, {}
+    local function Page(key)
+        c = CreateFrame("Frame", nil, scroll)
+        c:SetSize(640, 100)
+        c:Hide()
+        pages[#pages + 1] = { key = key, frame = c }
+        y = -8
+    end
+    local function EndPage() c:SetHeight(-y + 20) end
+
+    ----------------------------------------------------------------------------
+    Page("general")
+    -- Darstellung -----------------------------------------------------------
+    Header(c, L.H_DISPLAY, y); y = y - 34
+    Cycler(c, L.O_MODE, 20, y, List("ring", "pie", "bar"), Lookup(L.MODES),
+        function() return db().mode end, function(v) db().mode = v end, L.TIP_MODE)
+    y = y - 30
+    Slider(c, L.O_BASESIZE, 20, y, 60, 300, 5, "%d px",
+        function() return db().size end, function(v) db().size = v end, L.TIP_SIZE)
+    y = y - 28
+    Slider(c, L.O_ALPHA, 20, y, 0.1, 1.0, 0.05, Pct,
+        function() return db().alpha end, function(v) db().alpha = v end, L.TIP_ALPHA)
+    y = y - 40
+
+    -- Verhalten ----------------------------------------------------------------
+    Header(c, L.H_BEHAVIOR, y); y = y - 34
+    Check(c, L.O_ENABLED, 20, y,
+        function() return db().enabled end, function(v) db().enabled = v; ns.Minimap:Refresh() end, nil, nil, 295)
+    Check(c, L.O_MINIMAP, 320, y,
+        function() return not db().minimap.hide end,
+        function(v) db().minimap.hide = not v; ns.Minimap:Refresh() end, nil, nil, 295)
+    y = y - 28
+    Check(c, L.O_LOCK, 20, y,
+        function() return db().locked end, function(v) db().locked = v end)
+    y = y - 28
+    Check(c, L.O_HIDEFULL, 20, y,
+        function() return db().hideWhenFull end, function(v) db().hideWhenFull = v end)
+    y = y - 28
+    Check(c, L.O_ONLYMANA, 20, y,
+        function() return db().onlyManaClasses end, function(v) db().onlyManaClasses = v end)
+    y = y - 44
 
     -- Anordnung (Sandbox) -----------------------------------------------------
     Header(c, L.H_SANDBOX, y); y = y - 34
@@ -416,18 +457,27 @@ function O:Build()
     hint:SetWidth(600); hint:SetJustifyH("LEFT")
     y = y - 40
 
-    -- Darstellung -----------------------------------------------------------
-    Header(c, L.H_DISPLAY, y); y = y - 34
-    Cycler(c, L.O_MODE, 20, y, List("ring", "pie", "bar"), Lookup(L.MODES),
-        function() return db().mode end, function(v) db().mode = v end, L.TIP_MODE)
+    -- Werkzeuge ----------------------------------------------------------------
+    Header(c, L.H_TOOLS, y); y = y - 34
+    Button(c, L.B_TEST, 20, y, 180, function()
+        ns.Tracker:StartFSR(); ns.Display:Show(true)
+    end)
+    Button(c, L.B_POS_RESET, 210, y, 180, function()
+        ns.db.point = { "CENTER", "UIParent", "CENTER", 0, -160 }; Changed()
+    end)
+    Button(c, L.B_STYLE_RESET, 400, y, 200, function()
+        wipe(ns.db.style)
+        for k, v in pairs(ns.defaults.style) do ns.db.style[k] = v end
+        O:RefreshWidgets(); Changed()
+    end)
+    y = y - 34
+    Label(c, L.O_COMMANDS, 20, y, "GameFontDisableSmall")
     y = y - 30
-    Slider(c, L.O_BASESIZE, 20, y, 60, 300, 5, "%d px",
-        function() return db().size end, function(v) db().size = v end, L.TIP_SIZE)
-    y = y - 28
-    Slider(c, L.O_ALPHA, 20, y, 0.1, 1.0, 0.05, Pct,
-        function() return db().alpha end, function(v) db().alpha = v end, L.TIP_ALPHA)
-    y = y - 40
 
+    EndPage()
+
+    ----------------------------------------------------------------------------
+    Page("look")
     -- Thema & Deko -----------------------------------------------------------
     Header(c, L.H_THEME, y); y = y - 34
     Cycler(c, L.O_THEME, 20, y, ThemeValues, ThemeLabel,
@@ -452,6 +502,46 @@ function O:Build()
     end
     y = y - math.ceil(#ns.decorParts / 3) * 26 - 16
 
+    -- Hintergrund & Rand -----------------------------------------------------------
+    Header(c, L.H_BG, y); y = y - 34
+    Cycler(c, L.O_BG_SHAPE, 20, y, List("disc", "soft", "ring"), Lookup(L.BG_SHAPES),
+        SG("bgShape"), SS("bgShape"), L.TIP_BG_SHAPE, function() return IsCircle() and db().modules.background end)
+    y = y - 30
+    Slider(c, L.O_BG_SIZE, 20, y, 0.5, 2.0, 0.05, Times, SG("bgSize"), SS("bgSize"), L.TIP_BG_SIZE,
+        function() return IsCircle() and db().modules.background end)
+    y = y - 28
+    Slider(c, L.O_BG_ALPHA, 20, y, 0, 1, 0.05, Pct, SG("bgAlpha"), SS("bgAlpha"), L.TIP_BG_ALPHA,
+        function() return db().modules.background end)
+    y = y - 28
+    local rimActive = function() return IsCircle() and db().modules.rim end
+    Slider(c, L.O_RIM_SIZE, 20, y, 0.8, 1.5, 0.01, Times, SG("rimSize"), SS("rimSize"), L.TIP_RIM, rimActive)
+    y = y - 28
+    Slider(c, L.O_RIM_ALPHA, 20, y, 0, 1, 0.05, Pct, SG("rimAlpha"), SS("rimAlpha"), L.TIP_RIM, rimActive)
+    y = y - 32
+    Check(c, L.O_RIM_FSR, 20, y, SG("rimFSR"), SS("rimFSR"), L.TIP_RIM_FSR, rimActive)
+    y = y - 40
+
+    -- Visuelle Effekte ---------------------------------------------------------
+    Header(c, L.H_EFFECTS, y); y = y - 34
+    local animOn = function() return db().modules.animations and db().modules.decor end
+    local effects = {
+        { "fxRotate", animOn }, { "fxBob", animOn },
+        { "fxPulse", animOn }, { "fxFlicker", animOn },
+        { "fxSparkPulse", function() return db().modules.spark end },
+        { "fxRimPulse", function() return IsCircle() and db().modules.rim and style().rimFSR end },
+        { "fxTickFlash", function() return db().modules.ticks end },
+    }
+    for i, e in ipairs(effects) do
+        local col = (i - 1) % 2
+        local row = math.floor((i - 1) / 2)
+        Check(c, L.EFFECTS[e[1]], 20 + col * 300, y - row * 28, SG(e[1]), SS(e[1]), L.TIP_EFFECTS[e[1]], e[2], 295)
+    end
+    y = y - math.ceil(#effects / 2) * 28 - 14
+
+    EndPage()
+
+    ----------------------------------------------------------------------------
+    Page("bars")
     -- Mana-Anzeige ----------------------------------------------------------------
     Header(c, L.H_OUTER, y); y = y - 34
     Cycler(c, L.O_STYLE, 20, y, List("symbols", "solid"), Lookup(L.RING_STYLES),
@@ -490,7 +580,7 @@ function O:Build()
     y = y - 28
     Slider(c, L.O_BAR_HEIGHT, 20, y, 0.05, 4.0, 0.05, Times, SG("barHeight"), SS("barHeight"), L.TIP_BAR, IsBar)
     y = y - 30
-    Cycler(c, L.O_BAR_TEXTURE, 20, y, List("smooth", "flat", "blizzard"), Lookup(L.BAR_TEXTURES),
+    Cycler(c, L.O_BAR_TEXTURE, 20, y, function() return ns.barTextureOrder end, Lookup(L.BAR_TEXTURES),
         SG("barTexture"), SS("barTexture"), L.TIP_BAR, IsBar)
     y = y - 40
 
@@ -528,25 +618,10 @@ function O:Build()
     Slider(c, L.O_EMPTY_ALPHA, 20, y, 0, 1, 0.05, Pct, SG("emptyAlpha"), SS("emptyAlpha"), L.TIP_EMPTY_ALPHA)
     y = y - 40
 
-    -- Hintergrund & Rand -----------------------------------------------------------
-    Header(c, L.H_BG, y); y = y - 34
-    Cycler(c, L.O_BG_SHAPE, 20, y, List("disc", "soft", "ring"), Lookup(L.BG_SHAPES),
-        SG("bgShape"), SS("bgShape"), L.TIP_BG_SHAPE, function() return IsCircle() and db().modules.background end)
-    y = y - 30
-    Slider(c, L.O_BG_SIZE, 20, y, 0.5, 2.0, 0.05, Times, SG("bgSize"), SS("bgSize"), L.TIP_BG_SIZE,
-        function() return IsCircle() and db().modules.background end)
-    y = y - 28
-    Slider(c, L.O_BG_ALPHA, 20, y, 0, 1, 0.05, Pct, SG("bgAlpha"), SS("bgAlpha"), L.TIP_BG_ALPHA,
-        function() return db().modules.background end)
-    y = y - 28
-    local rimActive = function() return IsCircle() and db().modules.rim end
-    Slider(c, L.O_RIM_SIZE, 20, y, 0.8, 1.5, 0.01, Times, SG("rimSize"), SS("rimSize"), L.TIP_RIM, rimActive)
-    y = y - 28
-    Slider(c, L.O_RIM_ALPHA, 20, y, 0, 1, 0.05, Pct, SG("rimAlpha"), SS("rimAlpha"), L.TIP_RIM, rimActive)
-    y = y - 32
-    Check(c, L.O_RIM_FSR, 20, y, SG("rimFSR"), SS("rimFSR"), L.TIP_RIM_FSR, rimActive)
-    y = y - 40
+    EndPage()
 
+    ----------------------------------------------------------------------------
+    Page("text")
     -- Text, MP5 & Funke -----------------------------------------------------------
     local textOn = function() return db().modules.text end
     Header(c, L.H_TEXT, y); y = y - 34
@@ -556,12 +631,69 @@ function O:Build()
     Cycler(c, L.O_MP5, 20, y, List("current", "both", "off"), Lookup(L.MP5_MODES),
         SG("mp5Mode"), SS("mp5Mode"), L.TIP_MP5, textOn)
     y = y - 30
+    local mp5On = function() return db().modules.text and style().mp5Mode ~= "off" end
+    Check(c, L.O_MP5_BG, 20, y, SG("mp5Bg"), SS("mp5Bg"), L.TIP_MP5_BG, mp5On)
+    y = y - 30
+    Slider(c, L.O_MP5_BG_ALPHA, 20, y, 0.05, 1, 0.05, Pct, SG("mp5BgAlpha"), SS("mp5BgAlpha"), L.TIP_MP5_BG,
+        function() return mp5On() and style().mp5Bg end)
+    y = y - 32
     Slider(c, L.O_TEXTSCALE, 20, y, 0.4, 2.5, 0.05, Times, SG("textScale"), SS("textScale"), L.TIP_TEXTSCALE, textOn)
     y = y - 28
     Slider(c, L.O_SPARKSIZE, 20, y, 0.3, 3.0, 0.05, Times, SG("sparkSize"), SS("sparkSize"), L.TIP_SPARKSIZE,
         function() return db().modules.spark end)
     y = y - 40
 
+    EndPage()
+
+    ----------------------------------------------------------------------------
+    Page("colors")
+    -- Farben der beiden Leisten -----------------------------------------------
+    Header(c, L.H_BARCOLORS, y); y = y - 34
+    local function BarBlock(which, modeKey, midKey, fixedKeys, active)
+        local g = ns.gradients[which]
+        Label(c, L["BARCOL_" .. which:upper()], 20, y, "GameFontNormal")
+        y = y - 26
+        Cycler(c, L.O_BARCOL_MODE, 20, y, List("fixed", "gradient"), Lookup(L["BARCOL_MODES_" .. which:upper()]),
+            SG(modeKey), SS(modeKey), L["TIP_BARCOL_" .. which:upper()], active)
+        y = y - 30
+        local gradOn = function() return active() and style()[modeKey] == "gradient" end
+        Slider(c, L.O_BARCOL_MID, 20, y, 10, 90, 5, "%d%%", SG(midKey), SS(midKey), L.TIP_BARCOL_MID, gradOn)
+        y = y - 30
+        -- feste Farbe(n) zuerst, dann die drei Verlaufsfarben
+        local keys = {}
+        for _, k in ipairs(fixedKeys) do keys[#keys + 1] = { k, "fixed" } end
+        for i = 1, 3 do keys[#keys + 1] = { g[i], "gradient" } end
+        for i, kk in ipairs(keys) do
+            local col = (i - 1) % 3
+            local row = math.floor((i - 1) / 3)
+            Swatch(c, L.COLORS[kk[1]], kk[1], 20 + col * 195, y - row * 30, modeKey, kk[2])
+        end
+        y = y - math.ceil(#keys / 3) * 30 - 10
+    end
+    BarBlock("mana", "manaColorMode", "manaGradMid", { "ring" }, function() return db().modules.ring end)
+    BarBlock("timer", "timerColorMode", "timerGradMid", { "tick", "fsr" },
+        function() return db().modules.ticks or db().modules.fsr end)
+    y = y - 10
+
+    -- Farben -----------------------------------------------------------------
+    Header(c, L.H_COLORS, y); y = y - 34
+    Label(c, L.O_COLOR_HINT, 20, y, "GameFontDisableSmall")
+    y = y - 24
+    for i, ck in ipairs(ns.colorKeys) do
+        local col = (i - 1) % 3
+        local row = math.floor((i - 1) / 3)
+        Swatch(c, ck[2], ck[1], 20 + col * 195, y - row * 30)
+    end
+    y = y - math.ceil(#ns.colorKeys / 3) * 30 - 4
+    Button(c, L.O_COLORS_RESET, 20, y, 200, function()
+        wipe(ns.db.colors); O:RefreshWidgets(); Changed()
+    end)
+    y = y - 44
+
+    EndPage()
+
+    ----------------------------------------------------------------------------
+    Page("warn")
     -- Farbverlauf & Warnung ---------------------------------------------------
     Header(c, L.H_WARN, y); y = y - 34
     Cycler(c, L.O_TEXTCOLOR, 20, y, List("gradient", "fixed"), Lookup(L.TEXTCOLOR_MODES),
@@ -616,49 +748,10 @@ function O:Build()
     Check(c, L.O_WARN_COMBAT, 20, y, SG("warnCombatOnly"), SS("warnCombatOnly"), L.TIP_WARN_COMBAT, warnOn)
     y = y - 40
 
-    -- Farben der beiden Leisten -----------------------------------------------
-    Header(c, L.H_BARCOLORS, y); y = y - 34
-    local function BarBlock(which, modeKey, midKey, fixedKeys, active)
-        local g = ns.gradients[which]
-        Label(c, L["BARCOL_" .. which:upper()], 20, y, "GameFontNormal")
-        y = y - 26
-        Cycler(c, L.O_BARCOL_MODE, 20, y, List("fixed", "gradient"), Lookup(L["BARCOL_MODES_" .. which:upper()]),
-            SG(modeKey), SS(modeKey), L["TIP_BARCOL_" .. which:upper()], active)
-        y = y - 30
-        local gradOn = function() return active() and style()[modeKey] == "gradient" end
-        Slider(c, L.O_BARCOL_MID, 20, y, 10, 90, 5, "%d%%", SG(midKey), SS(midKey), L.TIP_BARCOL_MID, gradOn)
-        y = y - 30
-        -- feste Farbe(n) zuerst, dann die drei Verlaufsfarben
-        local keys = {}
-        for _, k in ipairs(fixedKeys) do keys[#keys + 1] = { k, "fixed" } end
-        for i = 1, 3 do keys[#keys + 1] = { g[i], "gradient" } end
-        for i, kk in ipairs(keys) do
-            local col = (i - 1) % 3
-            local row = math.floor((i - 1) / 3)
-            Swatch(c, L.COLORS[kk[1]], kk[1], 20 + col * 195, y - row * 30, modeKey, kk[2])
-        end
-        y = y - math.ceil(#keys / 3) * 30 - 10
-    end
-    BarBlock("mana", "manaColorMode", "manaGradMid", { "ring" }, function() return db().modules.ring end)
-    BarBlock("timer", "timerColorMode", "timerGradMid", { "tick", "fsr" },
-        function() return db().modules.ticks or db().modules.fsr end)
-    y = y - 10
+    EndPage()
 
-    -- Farben -----------------------------------------------------------------
-    Header(c, L.H_COLORS, y); y = y - 34
-    Label(c, L.O_COLOR_HINT, 20, y, "GameFontDisableSmall")
-    y = y - 24
-    for i, ck in ipairs(ns.colorKeys) do
-        local col = (i - 1) % 3
-        local row = math.floor((i - 1) / 3)
-        Swatch(c, ck[2], ck[1], 20 + col * 195, y - row * 30)
-    end
-    y = y - math.ceil(#ns.colorKeys / 3) * 30 - 4
-    Button(c, L.O_COLORS_RESET, 20, y, 200, function()
-        wipe(ns.db.colors); O:RefreshWidgets(); Changed()
-    end)
-    y = y - 44
-
+    ----------------------------------------------------------------------------
+    Page("modules")
     -- Module -------------------------------------------------------------------
     Header(c, L.H_MODULES, y); y = y - 34
     for i, key in ipairs(MODULE_ORDER) do
@@ -670,59 +763,29 @@ function O:Build()
     end
     y = y - math.ceil(#MODULE_ORDER / 2) * 28 - 14
 
-    -- Visuelle Effekte ---------------------------------------------------------
-    Header(c, L.H_EFFECTS, y); y = y - 34
-    local animOn = function() return db().modules.animations and db().modules.decor end
-    local effects = {
-        { "fxRotate", animOn }, { "fxBob", animOn },
-        { "fxPulse", animOn }, { "fxFlicker", animOn },
-        { "fxSparkPulse", function() return db().modules.spark end },
-        { "fxRimPulse", function() return IsCircle() and db().modules.rim and style().rimFSR end },
-        { "fxTickFlash", function() return db().modules.ticks end },
-    }
-    for i, e in ipairs(effects) do
-        local col = (i - 1) % 2
-        local row = math.floor((i - 1) / 2)
-        Check(c, L.EFFECTS[e[1]], 20 + col * 300, y - row * 28, SG(e[1]), SS(e[1]), L.TIP_EFFECTS[e[1]], e[2], 295)
+    EndPage()
+
+    -- Reiter-Knöpfe
+    local function SelectTab(i)
+        for j, p in ipairs(pages) do
+            p.frame:SetShown(j == i)
+            if j == i then tabButtons[j]:LockHighlight() else tabButtons[j]:UnlockHighlight() end
+        end
+        scroll:SetScrollChild(pages[i].frame)
+        scroll:SetVerticalScroll(0)
+        O.tab = i
     end
-    y = y - math.ceil(#effects / 2) * 28 - 14
-
-    -- Verhalten ----------------------------------------------------------------
-    Header(c, L.H_BEHAVIOR, y); y = y - 34
-    Check(c, L.O_ENABLED, 20, y,
-        function() return db().enabled end, function(v) db().enabled = v; ns.Minimap:Refresh() end, nil, nil, 295)
-    Check(c, L.O_MINIMAP, 320, y,
-        function() return not db().minimap.hide end,
-        function(v) db().minimap.hide = not v; ns.Minimap:Refresh() end, nil, nil, 295)
-    y = y - 28
-    Check(c, L.O_LOCK, 20, y,
-        function() return db().locked end, function(v) db().locked = v end)
-    y = y - 28
-    Check(c, L.O_HIDEFULL, 20, y,
-        function() return db().hideWhenFull end, function(v) db().hideWhenFull = v end)
-    y = y - 28
-    Check(c, L.O_ONLYMANA, 20, y,
-        function() return db().onlyManaClasses end, function(v) db().onlyManaClasses = v end)
-    y = y - 44
-
-    -- Werkzeuge ----------------------------------------------------------------
-    Header(c, L.H_TOOLS, y); y = y - 34
-    Button(c, L.B_TEST, 20, y, 180, function()
-        ns.Tracker:StartFSR(); ns.Display:Show(true)
-    end)
-    Button(c, L.B_POS_RESET, 210, y, 180, function()
-        ns.db.point = { "CENTER", "UIParent", "CENTER", 0, -160 }; Changed()
-    end)
-    Button(c, L.B_STYLE_RESET, 400, y, 200, function()
-        wipe(ns.db.style)
-        for k, v in pairs(ns.defaults.style) do ns.db.style[k] = v end
-        O:RefreshWidgets(); Changed()
-    end)
-    y = y - 34
-    Label(c, L.O_COMMANDS, 20, y, "GameFontDisableSmall")
-    y = y - 30
-
-    c:SetHeight(-y + 20)
+    O.SelectTab = function(_, i) SelectTab(i) end
+    local tabW = 86
+    for i, p in ipairs(pages) do
+        local b = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+        b:SetSize(tabW, 24)
+        b:SetPoint("TOPLEFT", 16 + (i - 1) * (tabW + 2), -70)
+        b:SetText(L.TABS[p.key])
+        b:SetScript("OnClick", function() SelectTab(i) end)
+        tabButtons[i] = b
+    end
+    SelectTab(O.tab or 1)
 
     panel:SetScript("OnShow", function() O:RefreshWidgets(); ns.Display:UpdateVisibility() end)
     panel:SetScript("OnHide", function() ns.Display:UpdateVisibility() end)

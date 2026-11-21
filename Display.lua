@@ -20,6 +20,9 @@ local BAR_TEX = {
 }
 
 local function Media(name) return ns.MEDIA .. name end
+for _, k in ipairs(ns.barTextureOrder or {}) do
+    if not BAR_TEX[k] then BAR_TEX[k] = Media("bar_" .. k) end   -- eigene Balkentexturen
+end
 local function st(key) return ns.GetStyle(key) end
 
 local function Hex(r, g, b)
@@ -218,7 +221,7 @@ function D:Build()
     local lvl = f:GetFrameLevel()
     self.back  = CreateFrame("Frame", nil, f); self.back:SetAllPoints();  self.back:SetFrameLevel(lvl + 1)
     self.main  = CreateFrame("Frame", nil, f); self.main:SetAllPoints();  self.main:SetFrameLevel(lvl + 2)
-    self.front = CreateFrame("Frame", nil, f); self.front:SetAllPoints(); self.front:SetFrameLevel(lvl + 5)
+    self.front = CreateFrame("Frame", nil, f); self.front:SetAllPoints(); self.front:SetFrameLevel(lvl + 6)
 
     local m = self.main
     self.bg = m:CreateTexture(nil, "BACKGROUND")
@@ -263,6 +266,12 @@ function D:Build()
     -- Ersatz-Balken, falls Manawerte im Kampf geheim sind (Kreis-/Torten-Modus)
     self.fallback = CreateFrame("StatusBar", nil, self.front)
     self.fallback:SetStatusBarTexture(BAR_TEX.blizzard)
+    self.fallbackAfter = CreateFrame("StatusBar", nil, self.fallback)
+    self.fallbackAfter:SetAllPoints(self.fallback)
+    self.fallbackAfter:SetFrameLevel(self.fallback:GetFrameLevel() + 1)
+    self.fallbackAfter:SetStatusBarTexture(BAR_TEX.blizzard)
+    self.fallbackAfter:SetMinMaxValues(0, 1)
+    self.fallbackAfter:Hide()
     self.fallback:Hide()
 
     -- Balken-Modus
@@ -275,8 +284,15 @@ function D:Build()
     self.barEmpty:SetAllPoints()
     self.barCost = self.bar:CreateTexture(nil, "OVERLAY")       -- Manavorschau (Kosten des Zaubers)
     self.barCost:SetTexture(BAR_TEX.flat)
-    self.barCost:SetBlendMode("ADD")
+    self.barCost:SetBlendMode("BLEND")
     self.barCost:Hide()
+    -- Manavorschau: zweite Leiste über der Mana-Leiste zeigt den Stand nach dem Zauber;
+    -- die Mana-Leiste darunter wird solange zum blassen Schatten (= Kosten)
+    self.barAfter = CreateFrame("StatusBar", nil, self.bar)
+    self.barAfter:SetAllPoints(self.bar)
+    self.barAfter:SetFrameLevel(lvl + 5)
+    self.barAfter:SetMinMaxValues(0, 1)
+    self.barAfter:Hide()
     self.bar2 = CreateFrame("StatusBar", nil, bf)
     self.bar2Empty = self.bar2:CreateTexture(nil, "BACKGROUND")
     self.bar2Empty:SetAllPoints()
@@ -289,6 +305,12 @@ function D:Build()
     self.infoText = fr:CreateFontString(nil, "OVERLAY")
     self.mp5Text  = fr:CreateFontString(nil, "OVERLAY")
     self.castText = fr:CreateFontString(nil, "OVERLAY")   -- Manavorschau beim Zaubern
+    -- Kästchen hinter der MP5-Zeile (folgt dem Text, auch wenn er verschoben wird)
+    self.mp5Bg = fr:CreateTexture(nil, "BACKGROUND")
+    self.mp5Bg:SetTexture(BAR_TEX.flat)
+    self.mp5Bg:SetPoint("TOPLEFT", self.mp5Text, "TOPLEFT", -4, 2)
+    self.mp5Bg:SetPoint("BOTTOMRIGHT", self.mp5Text, "BOTTOMRIGHT", 4, -2)
+    self.mp5Bg:Hide()
     -- Rote Warn-Zahl für geheime Manawerte (Sichtbarkeit über eine Kurve des Spiels)
     self.warnHolder = CreateFrame("Frame", nil, fr)
     self.warnHolder:SetAllPoints(fr)
@@ -380,6 +402,10 @@ function D:LayoutBar(S)
         self.bar2:SetWidth(max(1, T2))
     end
     self.bar:SetReverseFill(st("barDir") == "reverse")
+    self.barAfter:SetStatusBarTexture(tex)
+    self.barAfter:SetOrientation(orient)
+    self.barAfter:SetRotatesTexture(not horiz)
+    self.barAfter:SetReverseFill(st("barDir") == "reverse")
     self.bar2:SetReverseFill(st("innerBarDir") == "reverse")
     self.bar:SetShown(mods.ring)
     self.bar2:SetShown(T2 > 0)
@@ -628,7 +654,8 @@ function D:ApplyColors()
         self.barBack:SetShown(mods.background)
         self.bar:SetStatusBarColor(ns.GetColor("ring"))
         self.barEmpty:SetVertexColor(er, eg, eb, ea)
-        self.bar2Empty:SetVertexColor(er, eg, eb, ea)
+        local ter, teg, teb = ns.GetColor("timerEmpty")
+        self.bar2Empty:SetVertexColor(ter, teg, teb, ea)
     else
         self.bg:SetVertexColor(br, bgc, bb, ba)
         self.bg:SetShown(mods.background)
@@ -792,6 +819,15 @@ function D:CastPreview(cur, maxMana, frac, readable)
         local p = self:ReadablePercent()
         if p then nowF, exact = p, true else nowF = T:EstimatedFraction() end
     end
+    if not exact and mx then
+        -- Mana geheim: das Spiel rechnet "Mana minus Kosten" selbst über Kurven (exakt)
+        local pc = self:PreviewCurves(cost, mx)
+        if pc then
+            local line
+            if nowF and nowF * mx - cost < 0 then line = Hex(ns.GetColor("low")) .. L.CAST_NOMANA .. "|r" end
+            return line, nil, nil, pc
+        end
+    end
     if not (nowF and mx) then
         return Hex(ns.GetColor("cast")) .. string.format(L.CAST_COST, ShortNumber(cost)) .. "|r"
     end
@@ -858,6 +894,24 @@ local function Eval(curve)
     if ok then return v end
 end
 
+-- Kurven für die Manavorschau bei geheimen Werten: aus dem Anteil x wird der Stand nach
+-- dem Zauber (x - Kosten, nie unter 0) – als Anteil, Prozentzahl und Manawert
+function D:PreviewCurves(cost, mx)
+    if not self.cv then return nil end
+    local c = min(1, cost / mx)
+    local pc = self.prevCurves
+    if pc and pc.c == c and pc.mx == mx then return pc end
+    local ok, res = pcall(function()
+        local function pts(top)
+            if c >= 1 then return { { 0, 0 }, { 1, 0 } } end
+            return { { 0, 0 }, { c, 0 }, { 1, top } }
+        end
+        return { c = c, mx = mx, frac = NewCurve("Linear", pts(1 - c)),
+                 pct = NewCurve("Linear", pts(100 * (1 - c))), val = NewCurve("Linear", pts(mx - cost)) }
+    end)
+    if ok then self.prevCurves = res; return res end
+end
+
 -- Mana-Anteil (0..1) über UnitPowerPercent – nur wenn das Spiel ihn lesbar herausgibt
 function D:ReadablePercent()
     local p = self.cv and Eval(self.cv.pct)
@@ -906,18 +960,30 @@ function D:SelfTest()
 end
 
 -- Text bei geheimen Werten; schreibt in die normale und in die rote Warn-Zahl
-function D:SecretText(cur, tm, mode)
-    local p = self.cv and Eval(self.cv.pct)
+-- pc (optional): Kurven der Manavorschau – zeigt dann den Stand nach dem Zauber
+function D:SecretText(cur, tm, mode, pc)
+    local p
+    if pc then
+        p = Eval(pc.pct)
+        cur = Eval(pc.val) or cur
+    else
+        p = self.cv and Eval(self.cv.pct)
+    end
     self.valText:SetText("")
     for _, fs in ipairs({ self.bigText, self.warnBig }) do
         local ok
         if p and tm == "percent" then
             ok = pcall(fs.SetFormattedText, fs, "%.0f%%", p)
         elseif p and tm == "both" and mode == "bar" then
-            ok = pcall(fs.SetFormattedText, fs, "%s  (%.0f%%)", cur, p)
+            ok = pcall(fs.SetFormattedText, fs, pc and "%.0f  (%.0f%%)" or "%s  (%.0f%%)", cur, p)
         elseif p and tm == "both" then
             ok = pcall(fs.SetFormattedText, fs, "%.0f%%", p)
-            if fs == self.bigText then pcall(self.valText.SetText, self.valText, cur) end
+            if fs == self.bigText then
+                if pc then pcall(self.valText.SetFormattedText, self.valText, "%.0f", cur)
+                else pcall(self.valText.SetText, self.valText, cur) end
+            end
+        elseif pc then
+            ok = pcall(fs.SetFormattedText, fs, "%.0f", cur)    -- Kurvenwerte sind Kommazahlen
         else
             ok = pcall(fs.SetText, fs, cur)
         end
@@ -1041,33 +1107,42 @@ function D:Update(now)
     if readable and st("manaColorMode") == "gradient" then r, g, b = self:GradientColor(frac, "mana") end
     local showSpark = mods.spark and mods.ring and readable and frac > 0 and frac < 1
 
-    -- Manavorschau beim Zaubern: Kosten-Teil der Anzeige pulsiert in der Vorschau-Farbe
-    local castLine, cut, cutNow
-    if mods.castPreview then castLine, cut, cutNow = self:CastPreview(cur, maxMana, frac, readable) end
+    -- Manavorschau beim Zaubern: die Mana-Anzeige zeigt schon den Stand NACH dem Zauber.
+    -- Der Teil, den der Zauber kostet, bleibt nur als blasser, pulsierender Schatten stehen.
+    local castLine, cut, _, pcurves
+    if mods.castPreview then castLine, cut, _, pcurves = self:CastPreview(cur, maxMana, frac, readable) end
+    local pv = cut ~= nil or pcurves ~= nil        -- Vorschau läuft
+    local gr0, gg0, gb0 = ns.GetColor("cast")
+    local ghostA = 0.3 + 0.35 * math.abs(sin(now * 4))   -- Schatten der Kosten pulsiert
     local pr, pg, pb
     if cut then
-        local pulse = 0.55 + 0.45 * math.abs(sin(now * 4))
+        local k = 0.25 + 0.35 * math.abs(sin(now * 4))
         local cr, cg, cb = ns.GetColor("cast")
-        pr, pg, pb = r + (cr - r) * pulse, g + (cg - g) * pulse, b + (cb - b) * pulse
+        pr, pg, pb = er + (cr - er) * k, eg + (cg - eg) * k, eb + (cb - eb) * k
+        if readable then showSpark = showSpark and cut > 0 end
     end
+    local sparkFrac = (readable and cut) or frac
 
     if mode == "bar" then
         if mods.ring then
             -- StatusBars dürfen auch geheime Werte anzeigen
             pcall(self.bar.SetMinMaxValues, self.bar, 0, maxMana)
             pcall(self.bar.SetValue, self.bar, cur)
-            self.bar:SetStatusBarColor(r, g, b)
-        end
-        if cut and mods.ring and cutNow > cut then
-            self:PlaceBarCost(cut, cutNow)
-            local cr, cg, cb = ns.GetColor("cast")
-            self.barCost:SetVertexColor(cr, cg, cb, 0.35 + 0.45 * math.abs(sin(now * 4)))
-            self.barCost:Show()
+            local after = cut or (pcurves and Eval(pcurves.frac))
+            if pv and after ~= nil and pcall(self.barAfter.SetValue, self.barAfter, after) then
+                self.bar:SetStatusBarColor(gr0, gg0, gb0, ghostA)    -- Kosten = blasser Schatten
+                self.barAfter:SetStatusBarColor(r, g, b)
+                self.barAfter:Show()
+            else
+                self.bar:SetStatusBarColor(r, g, b, 1)
+                self.barAfter:Hide()
+            end
         else
-            self.barCost:Hide()
+            self.barAfter:Hide()
         end
+        self.barCost:Hide()
         if showSpark then
-            local pos = self.L1 * frac
+            local pos = self.L1 * sparkFrac
             if st("barDir") == "reverse" then pos = self.L1 - pos end
             self.spark:ClearAllPoints()
             if self.horiz then
@@ -1102,7 +1177,7 @@ function D:Update(now)
         end
         -- Funke nur bei Füllung rundherum (bei "von unten/oben" gibt es keine Spitze)
         if showSpark and (dir == "cw" or dir == "ccw") then
-            local a = math.pi / 2 + (dir == "cw" and -1 or 1) * frac * TWO_PI
+            local a = math.pi / 2 + (dir == "cw" and -1 or 1) * sparkFrac * TWO_PI
             local rad = self.outer.radius or S * 0.42
             if self.outer.kind == "pie" then rad = rad * 0.92 end
             self.spark:ClearAllPoints()
@@ -1118,6 +1193,15 @@ function D:Update(now)
             -- Geheime Werte: nur über das StatusBar-Widget anzeigen, nicht rechnen
             pcall(self.fallback.SetMinMaxValues, self.fallback, 0, maxMana)
             pcall(self.fallback.SetValue, self.fallback, cur)
+            local after = pcurves and Eval(pcurves.frac)
+            if after ~= nil and pcall(self.fallbackAfter.SetValue, self.fallbackAfter, after) then
+                self.fallback:SetStatusBarColor(gr0, gg0, gb0, ghostA)
+                self.fallbackAfter:SetStatusBarColor(r, g, b)
+                self.fallbackAfter:Show()
+            else
+                self.fallback:SetStatusBarColor(r, g, b, 1)
+                self.fallbackAfter:Hide()
+            end
             self.fallback:Show()
         else
             self.fallback:Hide()
@@ -1158,7 +1242,8 @@ function D:Update(now)
             self.inner.frame:Hide()
         else
             self.inner.frame:Show()
-            FillRing(self.inner, ifrac, ir, ig, ib, er, eg, eb, state == "idle" and ea * 0.6 or ea, mr, mg, mb)
+            local ter, teg, teb = ns.GetColor("timerEmpty")
+            FillRing(self.inner, ifrac, ir, ig, ib, ter, teg, teb, state == "idle" and ea * 0.6 or ea, mr, mg, mb)
         end
     end
 
@@ -1177,8 +1262,12 @@ function D:Update(now)
     -- Text ------------------------------------------------------------------------
     local tm = db.textMode
     if mods.text and tm ~= "none" and mods.ring then
-        if readable then
-            local pct = floor(frac * 100 + 0.5) .. "%"
+        -- Manavorschau: Zahlen zeigen schon den Stand nach dem Zauber
+        local tFrac, tCur = frac, cur
+        if cut then tFrac, tCur = cut, cut * maxMana end
+        if readable or cut then
+            local pct = floor(tFrac * 100 + 0.5) .. "%"
+            local cur = tCur      -- luacheck: ignore 421
             if mode == "bar" then
                 if tm == "percent" then self.bigText:SetText(pct)
                 elseif tm == "value" then self.bigText:SetText(ShortNumber(cur))
@@ -1192,11 +1281,16 @@ function D:Update(now)
                 self.bigText:SetText(pct); self.valText:SetText(ShortNumber(cur))
             end
         else
-            self:SecretText(cur, tm, mode)
+            self:SecretText(cur, tm, mode, pcurves)
         end
         -- Textfarbe: fest oder Verlauf; bei Warnung rot
         local tr, tg, tb
-        if readable and low then
+        if pv then
+            -- Vorschau-Farbe (rot, wenn das Mana nicht reicht), leicht pulsierend
+            local k = 0.75 + 0.25 * math.abs(sin(now * 4))
+            local cr, cg, cb = ns.GetColor((cut and cut <= 0) and "low" or "cast")
+            tr, tg, tb = cr * k, cg * k, cb * k
+        elseif readable and low then
             tr, tg, tb = ns.GetColor("low")
         elseif readable and st("textColorMode") == "gradient" then
             tr, tg, tb = self:GradientColor(frac)
@@ -1220,7 +1314,7 @@ function D:Update(now)
     elseif self.blinkAll then
         self.frame:SetAlpha(db.alpha); self.blinkAll = nil
     end
-    if readable then
+    if readable or pv then
         self.warnHolder:Hide()
     else
         self:SecretStyle(now, mods.text and tm ~= "none" and mods.ring)
@@ -1231,13 +1325,25 @@ function D:Update(now)
     self.infoText:SetTextColor(ir, ig, ib)
     self.infoText:SetShown(mods.text)
     if mods.text then
-        self.mp5Text:SetText(self:MP5Line(now))
+        local line = self:MP5Line(now)
+        self.mp5Text:SetText(line)
         self.mp5Text:Show()
+        if st("mp5Bg") and line ~= "" then
+            local br, bgc, bb = ns.GetColor("mp5bg")
+            self.mp5Bg:SetVertexColor(br, bgc, bb, st("mp5BgAlpha"))
+            self.mp5Bg:Show()
+        else
+            self.mp5Bg:Hide()
+        end
     else
         self.mp5Text:Hide()
+        self.mp5Bg:Hide()
     end
 
-    -- Textzeile der Manavorschau (in der Sandbox ein Beispiel zum Greifen)
+    -- Textzeile der Manavorschau (in der Sandbox ein Beispiel zum Greifen).
+    -- Mit sicher bekanntem Stand steht die Vorschau in der Mana-Anzeige selbst; die Zeile
+    -- darüber bleibt für "Zu wenig Mana!" und für geschätzte Werte
+    if cut and cut > 0 then castLine = nil end
     if not castLine and mods.castPreview and sb and sb:IsActive() then
         castLine = string.format(ns.L.CAST_AFTER, "1234", 60)
     end

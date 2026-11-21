@@ -791,7 +791,11 @@ function D:MP5Line(now)
     local inFSR = ns.Tracker:InFSR(now)
     local fsrHex, tickHex = Hex(ns.GetColor("fsr")), Hex(ns.GetColor("tick"))
     local function n(v) return v and tostring(floor(v + 0.5)) or "?" end
-    if mode == "current" then
+    if mode == "normal" then      -- fest: normale Regeneration, springt beim Zaubern nicht um
+        return ns.L.MP5 .. " " .. tickHex .. n(base) .. "|r"
+    elseif mode == "casting" then -- fest: Regeneration während der 5-Sek.-Regel
+        return ns.L.MP5 .. " " .. fsrHex .. n(cast) .. "|r"
+    elseif mode == "current" then
         if inFSR then return ns.L.MP5 .. " " .. fsrHex .. n(cast) .. "|r" end
         return ns.L.MP5 .. " " .. tickHex .. n(base) .. "|r"
     end

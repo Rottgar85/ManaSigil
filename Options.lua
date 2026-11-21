@@ -634,7 +634,7 @@ function O:Build()
     Slider(c, L.O_PCT_BG_ALPHA, 20, y, 0.05, 1, 0.05, Pct, SG("pctBgAlpha"), SS("pctBgAlpha"), L.TIP_PCT_BG,
         function() return pctOn() and style().pctBg end)
     y = y - 32
-    Cycler(c, L.O_MP5, 20, y, List("current", "both", "off"), Lookup(L.MP5_MODES),
+    Cycler(c, L.O_MP5, 20, y, List("normal", "casting", "current", "both", "off"), Lookup(L.MP5_MODES),
         SG("mp5Mode"), SS("mp5Mode"), L.TIP_MP5, textOn)
     y = y - 30
     local mp5On = function() return db().modules.text and style().mp5Mode ~= "off" end

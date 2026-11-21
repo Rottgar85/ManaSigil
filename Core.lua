@@ -6,7 +6,7 @@ ns.name  = addonName
 ns.MEDIA = "Interface\\AddOns\\" .. addonName .. "\\Media\\"
 ns.MANA  = (Enum and Enum.PowerType and Enum.PowerType.Mana) or 0
 
-local DB_VERSION = 4
+local DB_VERSION = 5
 
 -- Standardwerte (pro Charakter gespeichert)
 ns.defaults = {
@@ -72,7 +72,7 @@ ns.defaults = {
         barWidth    = 1.6,       -- Balken: Breite und Höhe (relativ zur Grundgröße)
         barHeight   = 0.2,
         barTexture  = "smooth",  -- smooth | flat | blizzard
-        mp5Mode     = "current", -- off | current | both
+        mp5Mode     = "normal",  -- normal | casting | current | both | off
         mp5Bg       = false,     -- farbiges Kästchen hinter der MP5-Zeile
         pctBg       = false,     -- farbiges Kästchen hinter der Mana-Zahl (%)
         pctBgAlpha  = 0.6,
@@ -160,6 +160,10 @@ local function Migrate(db)
             local key = "mana" .. k:sub(1, 1):upper() .. k:sub(2)
             if cols[k] and not cols[key] then cols[key] = { cols[k][1], cols[k][2], cols[k][3] } end
         end
+    end
+    if v < 5 then
+        -- "Aktueller Wert" sprang beim Zaubern um; feste Anzeige "Normal" ist jetzt Standard
+        if db.style.mp5Mode == "current" then db.style.mp5Mode = "normal" end
     end
     db.dbVersion = DB_VERSION
 end

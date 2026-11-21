@@ -145,7 +145,7 @@ for _, mode in ipairs({ "ring", "pie", "bar" }) do
         st.pieStyle = (di % 2 == 1) and "smooth" or "segments"
         for _, ff in ipairs({ "drain", "fill" }) do
             st.fsrFill, st.tickFill = ff, ff
-            for _, mp in ipairs({ "off", "current", "both" }) do
+            for _, mp in ipairs({ "off", "normal", "casting", "current", "both" }) do
                 st.mp5Mode = mp
                 st.innerHideIdle = (mp == "both")
                 D:Refresh(); now = now + 0.3; upd(nil, 1)
@@ -188,14 +188,15 @@ for i = 1, D.outer.n do if D.outer.ov[i] < lowOv then lowest, lowOv = i, D.outer
 assert(lowOv < 0.1 and math.sin(math.pi / 2 - (lowest - 0.5) / D.outer.n * 2 * math.pi) < -0.9, "unten beginnt die Füllung")
 -- Umstellung der Einstellungen aus 1.2.0 (Version 2)
 do
-    local old = { dbVersion = 2, style = { outerClockwise = false, innerClockwise = true, barWidth = 1.0, barHeight = 2.0 } }
+    local old = { dbVersion = 2, style = { outerClockwise = false, innerClockwise = true, barWidth = 1.0, barHeight = 2.0, mp5Mode = "current" } }
     ManaSigilDB = old
     local loaded = ns.db
     ev(nil, "ADDON_LOADED", "ManaSigil")
     local s = ManaSigilDB.style
     assert(s.outerDir == "ccw" and s.barDir == "reverse" and s.innerDir == "cw", "Richtung übernommen")
     assert(math.abs(s.barWidth - 1.6) < 1e-9 and math.abs(s.barHeight - 0.4) < 1e-9, "Balkenmaße umgerechnet")
-    assert(s.outerClockwise == nil and ManaSigilDB.dbVersion == 4, "alte Felder entfernt")
+    assert(s.outerClockwise == nil and ManaSigilDB.dbVersion == 5, "alte Felder entfernt")
+    assert(s.mp5Mode == "normal", "MP5 \"Aktuell\" wird zu \"Normal\" (springt nicht mehr um)")
     ManaSigilDB = loaded; ns.db = loaded
 end
 -- Umstellung aus 1.3.x: "Mana-Anzeige auch einfärben" -> eigener Verlauf der Mana-Leiste
@@ -719,6 +720,23 @@ do
     rawset(D.bar, "SetStatusBarTexture", nil); st.barTexture = "smooth"; ns.db.mode = "ring"; D:Refresh()
     for i = 1, 7 do ns.Options:SelectTab(i); assert(ns.Options.tab == i, "Reiter " .. i) end
     ns.Options:SelectTab(1)
+end
+
+-- MP5 "Normal" / "Beim Zaubern" bleiben beim Zaubern gleich, "Aktuell" wechselt
+do
+    local D, T = ns.Display, ns.Tracker
+    local oldRegen = GetManaRegen
+    GetManaRegen = function() return 20, 4 end            -- 100 normal, 20 beim Zaubern
+    st.mp5Mode = "normal"
+    T.fsrEnd = 0;          local a = D:MP5Line(now)
+    T:StartFSR(now);       local b = D:MP5Line(now)
+    assert(a == b and a:find("100", 1, true), "Normal springt nicht um")
+    st.mp5Mode = "casting"; assert(D:MP5Line(now):find("20", 1, true), "Beim Zaubern fest")
+    st.mp5Mode = "current"; T.fsrEnd = 0
+    local outside = D:MP5Line(now)
+    T:StartFSR(now)
+    assert(outside ~= D:MP5Line(now), "Aktuell wechselt")
+    GetManaRegen, T.fsrEnd, st.mp5Mode = oldRegen, 0, "normal"
 end
 
 print("Sprache", GetLocale(), "Thema angel =", ns.themes.angel.name, "| Symbol skull =", ns.shapeNames.skull)

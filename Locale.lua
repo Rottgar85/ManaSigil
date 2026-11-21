@@ -165,7 +165,7 @@ local enUS = {
     TIP_RIM = "Thin border line around the outermost ring.",
     TIP_RIM_FSR = "The border lights up in the five-second-rule color while the rule is active.",
     TIP_TEXTMODE = "What is shown in the center (or on the bar).",
-    TIP_MP5 = "Your mana regeneration per 5 seconds.\nCurrent value: what applies right now (outside or during the five-second rule).\nNormal / during: both values – the one that applies right now is highlighted.",
+    TIP_MP5 = "Your mana regeneration per 5 seconds.\nNormal (fixed): your regeneration outside the five-second rule – does not change while you cast.\nWhile casting (fixed): your regeneration during the five-second rule.\nCurrent value (switches): changes between both when you cast.\nNormal / during: both values – the one that applies right now is highlighted.",
     TIP_TEXTSCALE = "Size of all numbers.",
     TIP_SPARKSIZE = "Size of the glowing spark at the end of the mana display.",
 
@@ -217,7 +217,8 @@ local enUS = {
     BAR_TEXTURES = { smooth = "Smooth", flat = "Flat", blizzard = "Blizzard", gloss = "Gloss", glass = "Glass tube",
                      bevel = "Bevel", soft = "Soft", shine = "Light stripe", stripes = "Stripes",
                      segments = "Segments", grain = "Grain" },
-    MP5_MODES = { off = "Off", current = "Current value", both = "Normal / during 5-sec rule" },
+    MP5_MODES = { off = "Off", normal = "Normal (fixed)", casting = "While casting (fixed)",
+                  current = "Current value (switches)", both = "Normal / during 5-sec rule" },
     DECOR_PARTS = {
         glow = "Glow", wings = "Wings", halo = "Halo", sigil = "Sigil", horns = "Horns",
         runes = "Runes", leaves = "Leaves", rays = "Rays", bolts = "Lightning", feathers = "Feathers",
@@ -414,7 +415,7 @@ local deDE = {
     TIP_RIM = "Feine Randlinie um den äußersten Ring.",
     TIP_RIM_FSR = "Der Rand leuchtet in der Farbe der 5-Sek.-Regel, solange sie aktiv ist.",
     TIP_TEXTMODE = "Was in der Mitte (bzw. auf dem Balken) steht.",
-    TIP_MP5 = "Deine Mana-Regeneration pro 5 Sekunden.\nAktuell: der Wert, der gerade gilt (außerhalb oder während der 5-Sek.-Regel).\nNormal / während: beide Werte – der gerade gültige ist hervorgehoben.",
+    TIP_MP5 = "Deine Mana-Regeneration pro 5 Sekunden.\nNormal (fest): deine Regeneration außerhalb der 5-Sek.-Regel – springt beim Zaubern nicht um.\nBeim Zaubern (fest): deine Regeneration während der 5-Sek.-Regel.\nAktueller Wert (wechselt): wechselt beim Zaubern zwischen beiden.\nNormal / während: beide Werte – der gerade gültige ist hervorgehoben.",
     TIP_TEXTSCALE = "Größe aller Zahlen.",
     TIP_SPARKSIZE = "Größe des Leuchtfunkens am Ende der Mana-Anzeige.",
 
@@ -466,7 +467,8 @@ local deDE = {
     BAR_TEXTURES = { smooth = "Glatt", flat = "Flach", blizzard = "Blizzard", gloss = "Glanz", glass = "Glasröhre",
                      bevel = "Kante", soft = "Weich", shine = "Lichtstreifen", stripes = "Streifen",
                      segments = "Segmente", grain = "Körnung" },
-    MP5_MODES = { off = "Aus", current = "Aktueller Wert", both = "Normal / während 5-Sek.-Regel" },
+    MP5_MODES = { off = "Aus", normal = "Normal (fest)", casting = "Beim Zaubern (fest)",
+                  current = "Aktueller Wert (wechselt)", both = "Normal / während 5-Sek.-Regel" },
     DECOR_PARTS = {
         glow = "Leuchten", wings = "Flügel", halo = "Heiligenschein", sigil = "Siegel", horns = "Hörner",
         runes = "Runen", leaves = "Blätter", rays = "Strahlen", bolts = "Blitze", feathers = "Federn",

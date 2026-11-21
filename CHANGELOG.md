@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.8.2 – 2026-11-21
+
+- **MP5 no longer switches while casting:** new MP5 modes “Normal (fixed)” and “While casting (fixed)”. “Normal (fixed)” is the new default and always shows your regeneration outside the five-second rule. If you used “Current value”, it is switched to “Normal (fixed)” once; the switching mode is still available as “Current value (switches)”
+
 ## 1.8.1 – 2026-11-21
 
 - **Fixed:** while casting, the mana preview could stick out of the mana bar. The preview bar is now firmly anchored to the mana bar, clipped at its edges and never fills past 100 %

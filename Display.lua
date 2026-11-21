@@ -272,6 +272,8 @@ function D:Build()
     self.fallbackAfter:SetStatusBarTexture(BAR_TEX.blizzard)
     self.fallbackAfter:SetMinMaxValues(0, 1)
     self.fallbackAfter:Hide()
+    -- nichts darf über den Rand des Ersatzbalkens hinausragen
+    if self.fallback.SetClipsChildren then pcall(self.fallback.SetClipsChildren, self.fallback, true) end
     self.fallback:Hide()
 
     -- Balken-Modus
@@ -293,6 +295,8 @@ function D:Build()
     self.barAfter:SetFrameLevel(lvl + 5)
     self.barAfter:SetMinMaxValues(0, 1)
     self.barAfter:Hide()
+    -- die Vorschau-Leiste bleibt im Rahmen der Mana-Leiste (alles darüber hinaus wird abgeschnitten)
+    if self.bar.SetClipsChildren then pcall(self.bar.SetClipsChildren, self.bar, true) end
     self.bar2 = CreateFrame("StatusBar", nil, bf)
     self.bar2Empty = self.bar2:CreateTexture(nil, "BACKGROUND")
     self.bar2Empty:SetAllPoints()
@@ -311,6 +315,12 @@ function D:Build()
     self.mp5Bg:SetPoint("TOPLEFT", self.mp5Text, "TOPLEFT", -4, 2)
     self.mp5Bg:SetPoint("BOTTOMRIGHT", self.mp5Text, "BOTTOMRIGHT", 4, -2)
     self.mp5Bg:Hide()
+    -- Kästchen hinter der Mana-Zahl (folgt der Zahl)
+    self.pctBg = fr:CreateTexture(nil, "BACKGROUND")
+    self.pctBg:SetTexture(BAR_TEX.flat)
+    self.pctBg:SetPoint("TOPLEFT", self.bigText, "TOPLEFT", -5, 2)
+    self.pctBg:SetPoint("BOTTOMRIGHT", self.bigText, "BOTTOMRIGHT", 5, -2)
+    self.pctBg:Hide()
     -- Rote Warn-Zahl für geheime Manawerte (Sichtbarkeit über eine Kurve des Spiels)
     self.warnHolder = CreateFrame("Frame", nil, fr)
     self.warnHolder:SetAllPoints(fr)
@@ -402,6 +412,8 @@ function D:LayoutBar(S)
         self.bar2:SetWidth(max(1, T2))
     end
     self.bar:SetReverseFill(st("barDir") == "reverse")
+    self.barAfter:ClearAllPoints()
+    self.barAfter:SetAllPoints(self.bar)
     self.barAfter:SetStatusBarTexture(tex)
     self.barAfter:SetOrientation(orient)
     self.barAfter:SetRotatesTexture(not horiz)
@@ -596,6 +608,8 @@ function D:LayoutCircle(S, mode)
     self.flash:SetSize(S * 0.9, S * 0.9)
 
     self.fallback:SetSize(S * 0.5, S * 0.07)
+    self.fallbackAfter:ClearAllPoints()
+    self.fallbackAfter:SetAllPoints(self.fallback)
     Unpin(self.fallback)
     Pin(self.fallback, "CENTER", self.main, "CENTER", 0, -S * 0.2)
 
@@ -1128,7 +1142,8 @@ function D:Update(now)
             -- StatusBars dürfen auch geheime Werte anzeigen
             pcall(self.bar.SetMinMaxValues, self.bar, 0, maxMana)
             pcall(self.bar.SetValue, self.bar, cur)
-            local after = cut or (pcurves and Eval(pcurves.frac))
+            local after = cut and max(0, min(1, cut)) or (pcurves and Eval(pcurves.frac))
+            self.barAfter:SetMinMaxValues(0, 1)
             if pv and after ~= nil and pcall(self.barAfter.SetValue, self.barAfter, after) then
                 self.bar:SetStatusBarColor(gr0, gg0, gb0, ghostA)    -- Kosten = blasser Schatten
                 self.barAfter:SetStatusBarColor(r, g, b)
@@ -1194,6 +1209,7 @@ function D:Update(now)
             pcall(self.fallback.SetMinMaxValues, self.fallback, 0, maxMana)
             pcall(self.fallback.SetValue, self.fallback, cur)
             local after = pcurves and Eval(pcurves.frac)
+            self.fallbackAfter:SetMinMaxValues(0, 1)
             if after ~= nil and pcall(self.fallbackAfter.SetValue, self.fallbackAfter, after) then
                 self.fallback:SetStatusBarColor(gr0, gg0, gb0, ghostA)
                 self.fallbackAfter:SetStatusBarColor(r, g, b)
@@ -1300,8 +1316,15 @@ function D:Update(now)
         self.bigText:SetTextColor(tr, tg, tb)
         self.valText:SetTextColor(tr * 0.85, tg * 0.85, tb * 0.85)
         self.bigText:Show(); self.valText:SetShown(mode ~= "bar")
+        if st("pctBg") then
+            local br, bgc, bb = ns.GetColor("pctbg")
+            self.pctBg:SetVertexColor(br, bgc, bb, st("pctBgAlpha"))
+            self.pctBg:Show()
+        else
+            self.pctBg:Hide()
+        end
     else
-        self.bigText:Hide(); self.valText:Hide()
+        self.bigText:Hide(); self.valText:Hide(); self.pctBg:Hide()
     end
 
     -- Blinken bei wenig Mana

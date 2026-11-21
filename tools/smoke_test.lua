@@ -689,6 +689,17 @@ do
     assert(shown == true and alpha == 0.4, "MP5-Kästchen mit eigener Farbe und Deckkraft")
     for _, k in ipairs({ "Show", "Hide", "SetVertexColor" }) do rawset(D.mp5Bg, k, nil) end
     st.mp5Bg, ns.db.colors.mp5bg = false, nil
+    -- Kästchen hinter der Mana-Zahl
+    local pShown, pAlpha
+    rawset(D.pctBg, "Show", function() pShown = true end)
+    rawset(D.pctBg, "Hide", function() pShown = false end)
+    rawset(D.pctBg, "SetVertexColor", function(_, _, _, _, al) pAlpha = al end)
+    ns.db.textMode = "percent"; ns.db.modules.ring = true; st.pctBg = false; upd(nil, 1)
+    assert(pShown == false, "Kästchen hinter der Mana-Zahl standardmäßig aus")
+    st.pctBg, st.pctBgAlpha = true, 0.7; upd(nil, 1)
+    assert(pShown == true and pAlpha == 0.7, "Kästchen hinter der Mana-Zahl mit eigener Deckkraft")
+    for _, k in ipairs({ "Show", "Hide", "SetVertexColor" }) do rawset(D.pctBg, k, nil) end
+    st.pctBg = false
     ns.db.mode = "ring"; D:Refresh()
 end
 

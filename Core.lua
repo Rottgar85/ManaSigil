@@ -74,6 +74,8 @@ ns.defaults = {
         barTexture  = "smooth",  -- smooth | flat | blizzard
         mp5Mode     = "current", -- off | current | both
         mp5Bg       = false,     -- farbiges Kästchen hinter der MP5-Zeile
+        pctBg       = false,     -- farbiges Kästchen hinter der Mana-Zahl (%)
+        pctBgAlpha  = 0.6,
         mp5BgAlpha  = 0.6,
         textScale   = 1.0,
         decorScale  = 1.0,
@@ -175,7 +177,7 @@ ns.roundShapes = { dot = true, solid = true, circle = true }
 
 -- Einstellbare Farben (Reihenfolge = Optionsmenü)
 ns.colorKeys = {}
-for _, k in ipairs({ "ring", "empty", "timerEmpty", "fsr", "tick", "bg", "mp5bg", "rim", "text", "spark", "decor",
+for _, k in ipairs({ "ring", "empty", "timerEmpty", "fsr", "tick", "bg", "pctbg", "mp5bg", "rim", "text", "spark", "decor",
                     "high", "mid", "low", "cast" }) do
     ns.colorKeys[#ns.colorKeys + 1] = { k, L.COLORS[k] }
 end
@@ -329,7 +331,7 @@ function ns.GetColor(name)
         return ns.GetColor("ring")
     elseif name == "timerEmpty" then
         return ns.GetColor("empty")        -- leerer Teil der Timer-Leiste: wie die Mana-Leiste
-    elseif name == "mp5bg" then
+    elseif name == "mp5bg" or name == "pctbg" then
         return 0, 0, 0
     elseif name == "spark" then
         local r, g, b = ns.GetColor("ring")

@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.8.1 – 2026-11-21
+
+- **Fixed:** while casting, the mana preview could stick out of the mana bar. The preview bar is now firmly anchored to the mana bar, clipped at its edges and never fills past 100 %
+- **Background behind the mana number:** optional colored box behind the mana number (percent / value), with its own color ("Mana number background") and opacity – in the Text tab
+
 ## 1.8.0 – 2026-11-21
 
 - **Mana preview inside the mana bar:** while you cast, the mana bar (or ring / pie) already shows your mana after the spell – the bar gets shorter and the numbers show the lower value. The part the spell costs stays as a pale, pulsing gold shadow. The extra line above the display now only appears for "Not enough mana!"

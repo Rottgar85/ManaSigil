@@ -628,6 +628,12 @@ function O:Build()
     Cycler(c, L.O_TEXTMODE, 20, y, List("percent", "value", "both", "none"), Lookup(L.TEXT_MODES),
         function() return db().textMode end, function(v) db().textMode = v end, L.TIP_TEXTMODE, textOn)
     y = y - 30
+    local pctOn = function() return db().modules.text and db().textMode ~= "none" end
+    Check(c, L.O_PCT_BG, 20, y, SG("pctBg"), SS("pctBg"), L.TIP_PCT_BG, pctOn)
+    y = y - 30
+    Slider(c, L.O_PCT_BG_ALPHA, 20, y, 0.05, 1, 0.05, Pct, SG("pctBgAlpha"), SS("pctBgAlpha"), L.TIP_PCT_BG,
+        function() return pctOn() and style().pctBg end)
+    y = y - 32
     Cycler(c, L.O_MP5, 20, y, List("current", "both", "off"), Lookup(L.MP5_MODES),
         SG("mp5Mode"), SS("mp5Mode"), L.TIP_MP5, textOn)
     y = y - 30

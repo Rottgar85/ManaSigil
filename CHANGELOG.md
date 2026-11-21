@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.8.3 – 2026-11-21
+
+- **Fixed:** with a vertical bar, the MP5 line below the bar no longer jumps up and down when the five-second-rule countdown appears or disappears
+
 ## 1.8.2 – 2026-11-21
 
 - **MP5 no longer switches while casting:** new MP5 modes “Normal (fixed)” and “While casting (fixed)”. “Normal (fixed)” is the new default and always shows your regeneration outside the five-second rule. If you used “Current value”, it is switched to “Normal (fixed)” once; the switching mode is still available as “Current value (switches)”

@@ -144,13 +144,17 @@ end
 -- Füllstand anzeigen. Gefüllt = (r,g,b), leer = (er,eg,eb) mit Deckkraft ea.
 -- Bei Kreis/Torte wird die Leerfarbe deckend mit dem Hintergrund gemischt,
 -- damit überlappende Teile keine dunklen Flecken bilden.
-local function FillRing(ring, frac, r, g, b, er, eg, eb, ea, mixR, mixG, mixB)
+-- cut (optional): Manavorschau – Teile oberhalb von cut (bis frac) bekommen die Farbe (cr,cg,cb).
+local function FillRing(ring, frac, r, g, b, er, eg, eb, ea, mixR, mixG, mixB, cut, cr, cg, cb)
     local n = ring.n
     if n == 0 then return end
     local key = floor(frac * n * 16 + 0.5)
+    local ckey = cut and floor(cut * n * 16 + 0.5) or -1
     local c = ring.cache
-    if c.key == key and c.r == r and c.g == g and c.b == b and c.er == er and c.ea == ea and c.mr == mixR then return end
+    if c.key == key and c.r == r and c.g == g and c.b == b and c.er == er and c.ea == ea and c.mr == mixR
+        and c.ck == ckey and c.cr == cr and c.cg == cg and c.cb == cb then return end
     c.key, c.r, c.g, c.b, c.er, c.ea, c.mr = key, r, g, b, er, ea, mixR
+    c.ck, c.cr, c.cg, c.cb = ckey, cr, cg, cb
 
     local opaque = ring.kind ~= "symbols"
     if opaque then
@@ -163,13 +167,15 @@ local function FillRing(ring, frac, r, g, b, er, eg, eb, ea, mixR, mixG, mixB)
         -- Füllgrad dieses Teils: 0 = leer, 1 = voll, dazwischen weicher Übergang
         local v = (frac - (ring.ov[i] - w / 2)) / w
         local t = ring.pips[i]
+        local fr, fg, fb = r, g, b
+        if cut and (cut - (ring.ov[i] - w / 2)) / w < 0.5 then fr, fg, fb = cr, cg, cb end
         if v >= 1 then
-            t:SetVertexColor(r, g, b, 1)
+            t:SetVertexColor(fr, fg, fb, 1)
         elseif v > 0 then
             if opaque then
-                t:SetVertexColor(er + (r - er) * v, eg + (g - eg) * v, eb + (b - eb) * v, 1)
+                t:SetVertexColor(er + (fr - er) * v, eg + (fg - eg) * v, eb + (fb - eb) * v, 1)
             else
-                t:SetVertexColor(r, g, b, ea + (1 - ea) * v)
+                t:SetVertexColor(fr, fg, fb, ea + (1 - ea) * v)
             end
         else
             t:SetVertexColor(er, eg, eb, ea)
@@ -232,7 +238,10 @@ function D:Build()
     self.pieFrame = pf
     self.pieEmpty = pf:CreateTexture(nil, "ARTWORK", nil, 0)
     self.pieEmpty:SetTexture(Media("filldisc"))
-    self.pieFill = pf:CreateTexture(nil, "ARTWORK", nil, 1)
+    self.pieCost = pf:CreateTexture(nil, "ARTWORK", nil, 1)   -- Manavorschau (Kosten des Zaubers)
+    self.pieCost:SetTexture(Media("filldisc"))
+    self.pieCost:Hide()
+    self.pieFill = pf:CreateTexture(nil, "ARTWORK", nil, 2)
     self.pieFill:SetTexture(Media("filldisc"))
     pf:Hide()
     -- Trennlinien zwischen Tortenstücken
@@ -264,6 +273,10 @@ function D:Build()
     self.bar = CreateFrame("StatusBar", nil, bf)
     self.barEmpty = self.bar:CreateTexture(nil, "BACKGROUND")
     self.barEmpty:SetAllPoints()
+    self.barCost = self.bar:CreateTexture(nil, "OVERLAY")       -- Manavorschau (Kosten des Zaubers)
+    self.barCost:SetTexture(BAR_TEX.flat)
+    self.barCost:SetBlendMode("ADD")
+    self.barCost:Hide()
     self.bar2 = CreateFrame("StatusBar", nil, bf)
     self.bar2Empty = self.bar2:CreateTexture(nil, "BACKGROUND")
     self.bar2Empty:SetAllPoints()
@@ -275,6 +288,7 @@ function D:Build()
     self.valText  = fr:CreateFontString(nil, "OVERLAY")
     self.infoText = fr:CreateFontString(nil, "OVERLAY")
     self.mp5Text  = fr:CreateFontString(nil, "OVERLAY")
+    self.castText = fr:CreateFontString(nil, "OVERLAY")   -- Manavorschau beim Zaubern
     -- Rote Warn-Zahl für geheime Manawerte (Sichtbarkeit über eine Kurve des Spiels)
     self.warnHolder = CreateFrame("Frame", nil, fr)
     self.warnHolder:SetAllPoints(fr)
@@ -283,7 +297,7 @@ function D:Build()
     self.warnBig:SetPoint("CENTER", self.bigText, "CENTER", 0, 0)
     -- Jede Schrift braucht von Anfang an einen Font, sonst bricht SetText ab
     -- ("Font not set") – z. B. valText im Balken-Modus, wo Layout ihn nie setzt
-    for _, fs in ipairs({ self.bigText, self.valText, self.infoText, self.mp5Text, self.warnBig }) do
+    for _, fs in ipairs({ self.bigText, self.valText, self.infoText, self.mp5Text, self.castText, self.warnBig }) do
         SetFontSize(fs, 14)
     end
     self.warnHolder:Hide()
@@ -380,6 +394,8 @@ function D:LayoutBar(S)
         PlaceText(self.bigText, self.bar, "CENTER", 0, 0)
         PlaceText(self.infoText, self.bar2, "CENTER", 0, 0)
         Pin(self.mp5Text, "TOP", bf, "BOTTOM", 0, -pad - 2)
+        SetFontSize(self.castText, max(9, T1 * 0.5) * ts)
+        Unpin(self.castText); Pin(self.castText, "BOTTOM", bf, "TOP", 0, pad + 2)
     else
         -- senkrecht: Zahlen über und unter dem Balken
         SetFontSize(self.bigText, S * 0.14 * ts)
@@ -388,6 +404,8 @@ function D:LayoutBar(S)
         Unpin(self.bigText); Pin(self.bigText, "BOTTOM", bf, "TOP", 0, pad + 2)
         Unpin(self.infoText); Pin(self.infoText, "TOP", bf, "BOTTOM", 0, -pad - 2)
         Pin(self.mp5Text, "TOP", self.infoText, "BOTTOM", 0, -2)
+        SetFontSize(self.castText, S * 0.09 * ts)
+        Unpin(self.castText); Pin(self.castText, "BOTTOM", self.bigText, "TOP", 0, 2)
     end
 
     local sp = T1 * 1.6 * st("sparkSize")
@@ -405,11 +423,23 @@ function D:SetupLiquid(R)
     self.pieEmpty:SetTexCoord(0, 1, 0, 1)
 end
 
--- Füllstand der Flüssigkeits-Torte: ein Ausschnitt der Scheibe, von unten bzw. oben
-function D:UpdateLiquid(f, r, g, b, er, eg, eb, ea)
-    local R, t = self.pieR or 1, self.pieFill
+-- Füllstand der Flüssigkeits-Torte: ein Ausschnitt der Scheibe, von unten bzw. oben.
+-- cut (optional): Manavorschau – der Teil zwischen cut und f in der Farbe (cr,cg,cb)
+function D:UpdateLiquid(f, r, g, b, er, eg, eb, ea, cut, cr, cg, cb)
     self.pieEmpty:SetVertexColor(er, eg, eb, ea)
-    if f <= 0 then t:Hide(); return end
+    if cut and cut < f then
+        if self:LiquidTo(self.pieCost, f) then self.pieCost:SetVertexColor(cr, cg, cb, 1) end
+        f = cut
+    else
+        self.pieCost:Hide()
+    end
+    if self:LiquidTo(self.pieFill, f) then self.pieFill:SetVertexColor(r, g, b, 1) end
+end
+
+-- Scheibe t bis zum Anteil f zeigen; false = nichts zu zeigen
+function D:LiquidTo(t, f)
+    local R = self.pieR or 1
+    if f <= 0 then t:Hide(); return false end
     if f > 1 then f = 1 end
     t:ClearAllPoints()
     local dir = st("outerDir")
@@ -432,8 +462,8 @@ function D:UpdateLiquid(f, r, g, b, er, eg, eb, ea)
             t:SetTexCoord(0, 1, 1 - f, 1)
         end
     end
-    t:SetVertexColor(r, g, b, 1)
     t:Show()
+    return true
 end
 
 -- Trennlinien für die Torte "in Stücken": Speichen (rundherum) oder waagerechte Linien (von unten/oben)
@@ -552,6 +582,8 @@ function D:LayoutCircle(S, mode)
     PlaceText(self.valText, self.front, "CENTER", 0, S * 0.17 * ts)
     PlaceText(self.infoText, self.front, "CENTER", 0, -S * 0.10 * ts)
     PlaceText(self.mp5Text, self.front, "CENTER", 0, -S * 0.20 * ts)
+    SetFontSize(self.castText, max(9, S * 0.095 * ts))
+    Unpin(self.castText); Pin(self.castText, "BOTTOM", self.front, "TOP", 0, 2)
 end
 
 function D:Layout()
@@ -574,6 +606,14 @@ function D:Layout()
         self:LayoutBar(S)
     else
         self:LayoutCircle(S, db.mode)
+    end
+    -- Beispieltext, damit die Manavorschau in der Sandbox greifbar ist
+    local sb = ns.Sandbox
+    if db.modules.castPreview and sb and sb:IsActive() then
+        self.castText:SetText(string.format(ns.L.CAST_AFTER, "1234", 60))
+        self.castText:Show()
+    else
+        self.castText:Hide()
     end
 end
 
@@ -717,6 +757,54 @@ function D:MP5Line(now)
     local a = (inFSR and "|cff808080" or tickHex) .. n(base) .. "|r"
     local b = (inFSR and fsrHex or "|cff808080") .. n(cast) .. "|r"
     return ns.L.MP5 .. " " .. a .. " / " .. b
+end
+
+-- Manavorschau im Balken: Bereich von a bis b (Anteile 0..1) der Mana-Leiste markieren
+function D:PlaceBarCost(a, b)
+    local t, L1 = self.barCost, self.L1 or 1
+    local len = max(1, (b - a) * L1)
+    local rev = st("barDir") == "reverse"
+    t:ClearAllPoints()
+    if self.horiz then
+        if rev then t:SetPoint("RIGHT", self.bar, "RIGHT", -a * L1, 0)
+        else t:SetPoint("LEFT", self.bar, "LEFT", a * L1, 0) end
+        t:SetSize(len, self.T1 or 1)
+    else
+        if rev then t:SetPoint("TOP", self.bar, "TOP", 0, -a * L1)
+        else t:SetPoint("BOTTOM", self.bar, "BOTTOM", 0, a * L1) end
+        t:SetSize(self.T1 or 1, len)
+    end
+end
+
+-- Manavorschau: was bleibt nach dem laufenden Zauber?
+-- Rückgabe: Textzeile (oder nil), Anteil nach dem Zauber und Anteil jetzt (beide nur, wenn
+-- der Füllstand sicher bekannt ist – sonst säße die Markierung an der falschen Stelle)
+function D:CastPreview(cur, maxMana, frac, readable)
+    local T = ns.Tracker
+    local cost = T:CastPreview()
+    if not cost then return nil end
+    local L = ns.L
+    local mx = ns.Readable(maxMana) and type(maxMana) == "number" and maxMana > 0 and maxMana or nil
+    local nowF, exact = nil, false
+    if readable then
+        nowF, exact = frac, true
+    else
+        local p = self:ReadablePercent()
+        if p then nowF, exact = p, true else nowF = T:EstimatedFraction() end
+    end
+    if not (nowF and mx) then
+        return Hex(ns.GetColor("cast")) .. string.format(L.CAST_COST, ShortNumber(cost)) .. "|r"
+    end
+    local mana = (readable and type(cur) == "number") and cur or nowF * mx
+    local after = mana - cost
+    if after < 0 then
+        return Hex(ns.GetColor("low")) .. L.CAST_NOMANA .. "|r", exact and 0 or nil, exact and nowF or nil
+    end
+    local af = min(1, after / mx)
+    local cr, cg, cb
+    if st("textColorMode") == "gradient" then cr, cg, cb = self:GradientColor(af) else cr, cg, cb = ns.GetColor("cast") end
+    local line = string.format(L.CAST_AFTER, (exact and "" or "~") .. ShortNumber(after), floor(af * 100 + 0.5))
+    return Hex(cr, cg, cb) .. line .. "|r", exact and af or nil, exact and nowF or nil
 end
 
 -- Laufende Aktualisierung --------------------------------------------------------
@@ -940,8 +1028,8 @@ function D:Update(now)
     -- Für die Warnung: bei geheimem Mana den Prozentwert vom Spiel holen, falls er lesbar ist,
     -- sonst das selbst mitgerechnete Mana (Tracker:EstimatedFraction)
     local wcur, wfrac, wread = cur, frac, readable
+    T:UpdateEstimate(now)          -- läuft immer mit, damit die Zeitrechnung nicht springt
     if not readable then
-        T:UpdateEstimate(now)
         wfrac = self:ReadablePercent() or T:EstimatedFraction()
         if wfrac then
             wread = true
@@ -953,12 +1041,30 @@ function D:Update(now)
     if readable and st("manaColorMode") == "gradient" then r, g, b = self:GradientColor(frac, "mana") end
     local showSpark = mods.spark and mods.ring and readable and frac > 0 and frac < 1
 
+    -- Manavorschau beim Zaubern: Kosten-Teil der Anzeige pulsiert in der Vorschau-Farbe
+    local castLine, cut, cutNow
+    if mods.castPreview then castLine, cut, cutNow = self:CastPreview(cur, maxMana, frac, readable) end
+    local pr, pg, pb
+    if cut then
+        local pulse = 0.55 + 0.45 * math.abs(sin(now * 4))
+        local cr, cg, cb = ns.GetColor("cast")
+        pr, pg, pb = r + (cr - r) * pulse, g + (cg - g) * pulse, b + (cb - b) * pulse
+    end
+
     if mode == "bar" then
         if mods.ring then
             -- StatusBars dürfen auch geheime Werte anzeigen
             pcall(self.bar.SetMinMaxValues, self.bar, 0, maxMana)
             pcall(self.bar.SetValue, self.bar, cur)
             self.bar:SetStatusBarColor(r, g, b)
+        end
+        if cut and mods.ring and cutNow > cut then
+            self:PlaceBarCost(cut, cutNow)
+            local cr, cg, cb = ns.GetColor("cast")
+            self.barCost:SetVertexColor(cr, cg, cb, 0.35 + 0.45 * math.abs(sin(now * 4)))
+            self.barCost:Show()
+        else
+            self.barCost:Hide()
         end
         if showSpark then
             local pos = self.L1 * frac
@@ -981,10 +1087,12 @@ function D:Update(now)
             -- Torte "in Stücken": nur ganze Stücke füllen
             local shown = frac
             if self.segN then shown = floor(frac * self.segN + 1e-6) / self.segN end
+            local ringCut = readable and cut or nil   -- Ring zeigt nur lesbare Werte
+            if ringCut and self.segN then ringCut = floor(ringCut * self.segN + 1e-6) / self.segN end
             if self.pieLiquid then
-                self:UpdateLiquid(shown, r, g, b, er, eg, eb, ea)
+                self:UpdateLiquid(shown, r, g, b, er, eg, eb, ea, ringCut, pr, pg, pb)
             else
-                FillRing(self.outer, shown, r, g, b, er, eg, eb, ea, mr, mg, mb)
+                FillRing(self.outer, shown, r, g, b, er, eg, eb, ea, mr, mg, mb, ringCut, pr, pg, pb)
             end
             if self.segN then
                 local gr, gg, gb = 0, 0, 0
@@ -1127,6 +1235,17 @@ function D:Update(now)
         self.mp5Text:Show()
     else
         self.mp5Text:Hide()
+    end
+
+    -- Textzeile der Manavorschau (in der Sandbox ein Beispiel zum Greifen)
+    if not castLine and mods.castPreview and sb and sb:IsActive() then
+        castLine = string.format(ns.L.CAST_AFTER, "1234", 60)
+    end
+    if castLine then
+        self.castText:SetText(castLine)
+        self.castText:Show()
+    else
+        self.castText:Hide()
     end
 
     -- Aufblitzen bei Mana-Tick

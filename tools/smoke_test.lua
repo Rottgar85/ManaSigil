@@ -533,10 +533,13 @@ do
     assert(plays == 0, "kein Ton bei vollem Mana")
     ev(nil, "UNIT_SPELLCAST_SUCCEEDED", "player", "g", 7); now = now + 0.1; upd(nil, 1)
     ev(nil, "UNIT_SPELLCAST_SUCCEEDED", "player", "g", 7); now = now + 0.1; upd(nil, 1)
-    assert(math.abs(T:EstimatedFraction() - 0.2) < 1e-9, "Zauberkosten abgezogen")
+    -- Regeneration läuft nach der Uhr mit (0,1 s in der 5-Sek.-Regel = winzig)
+    assert(math.abs(T:EstimatedFraction() - 0.2) < 0.005, "Zauberkosten abgezogen")
     assert(plays == 1, "Ton unter 25 % (geschätzt)")
+    local before = T.est
     now = now + 6; ev(nil, "UNIT_POWER_UPDATE", "player", "MANA"); upd(nil, 1)
-    assert(math.abs(T.est - 240) < 1e-9, "Tick addiert die Regeneration")
+    -- 6 s: ca. 5 s Zauber-Regeneration (2/s) + 1 s normale (20/s) = ca. 30 Mana, auch ohne erkannte Ticks
+    assert(T.est > before + 20 and T.est < before + 40, "Regeneration nach Zeit: " .. tostring(T.est - before))
     ev(nil, "UNIT_SPELLCAST_SUCCEEDED", "player", "g", 8); now = now + 0.1; upd(nil, 1)
     assert(T:EstimatedFraction() == nil, "geheime Kosten -> Schätzung verworfen")
     now = now + 10; upd(nil, 1)
@@ -544,6 +547,41 @@ do
     SlashCmdList.MANASIGIL("debug")
     ns.Options:RefreshWidgets()
     UnitPower, UnitPowerMax, PlaySound, GetManaRegen, issecretvalue, C_Spell = oldUP, oldUPM, oldPS, oldRegen, nil, nil
+    T:Reset()
+end
+
+-- Manavorschau beim Zaubern
+do
+    local T, D = ns.Tracker, ns.Display
+    local oldUP, oldUPM = UnitPower, UnitPowerMax
+    UnitPower = function() return 2000 end
+    UnitPowerMax = function() return 4000 end
+    C_Spell = { GetSpellPowerCost = function(id)
+        if id == 7 then return { { type = 0, cost = 300 } } end
+        if id == 9 then return { { type = 0, cost = 5000 } } end
+    end }
+    ns.db.modules.castPreview = true
+    T:Reset()
+    assert(T:CastPreview() == nil, "kein Zauber -> keine Vorschau")
+    ev(nil, "UNIT_SPELLCAST_START", "player", "g", 7)
+    assert(T:CastPreview() == 300, "Kosten des laufenden Zaubers")
+    local line, cut, cur = D:CastPreview(2000, 4000, 0.5, true)
+    assert(line:find("1700", 1, true) and math.abs(cut - 0.425) < 1e-9 and cur == 0.5, "Mana nach dem Zauber")
+    upd(nil, 1)
+    assert(D.castText:IsShown() ~= false, "Vorschau-Text sichtbar")
+    ev(nil, "UNIT_SPELLCAST_STOP", "player", "g", 7)
+    assert(T:CastPreview() == nil, "Zauber beendet -> Vorschau weg")
+    ev(nil, "UNIT_SPELLCAST_START", "player", "g", 9)
+    line, cut = D:CastPreview(2000, 4000, 0.5, true)
+    assert(cut == 0 and line:find(ns.L.CAST_NOMANA, 1, true), "zu wenig Mana")
+    ev(nil, "UNIT_SPELLCAST_INTERRUPTED", "player", "g", 9)
+    for _, mode in ipairs({ "pie", "bar", "ring" }) do      -- alle Modi zeichnen mit Vorschau ohne Fehler
+        ns.db.mode = mode; D:Refresh()
+        ev(nil, "UNIT_SPELLCAST_START", "player", "g", 7); upd(nil, 1)
+        ev(nil, "UNIT_SPELLCAST_STOP", "player", "g", 7); upd(nil, 1)
+    end
+    assert(ns.warnSounds.icquhoh and ns.warnSounds.icqmsg, "ICQ-Töne vorhanden")
+    UnitPower, UnitPowerMax, C_Spell = oldUP, oldUPM, nil
     T:Reset()
 end
 

@@ -71,10 +71,7 @@ function T:OnPower(event)
         if self.lastCast and now - self.lastCast < CAST_WINDOW then
             if now >= self.fsrEnd then self:StartFSR(now) end
         elseif now >= self.fsrEnd then
-            if self:RegisterTick(now, nil) then self:AddEstimate("base") end
-        elseif not self.lastFsrTick or now - self.lastFsrTick >= MIN_TICK_GAP then
-            self.lastFsrTick = now         -- Tick während der 5-Sek.-Regel (Zauber-Regeneration)
-            self:AddEstimate("cast")
+            self:RegisterTick(now, nil)
         end
         return
     end
@@ -113,19 +110,25 @@ local function MaxMana()
     if ns.Readable(mx) and type(mx) == "number" and mx > 0 then return mx end
 end
 
-function T:AddEstimate(kind)
-    if not self.est then return end
-    local base, cast = self:GetMP5()
-    local per5 = (kind == "cast") and cast or base
-    local mx = MaxMana()
-    if not (per5 and mx) then return end
-    self.est = math.min(mx, self.est + per5 * TICK_INTERVAL / 5)
-end
-
--- regelmäßig aufrufen: erkennt volles Mana (lange kein Tick, außerhalb der 5-Sek.-Regel)
+-- regelmäßig aufrufen (jedes Bild): Regeneration nach Zeit dazurechnen und volles Mana
+-- erkennen (lange kein Tick, außerhalb der 5-Sek.-Regel).
+-- Die Regeneration läuft nach der Uhr, nicht nach erkannten Tick-Events: verpasste Ticks
+-- ließen die Schätzung sonst zu niedrig hängen (Warnton auch weit über der Schwelle).
 function T:UpdateEstimate(now)
-    if not self.secret then return end
     now = now or GetTime()
+    local last = self.lastEstTime
+    if not self.secret then self.lastEstTime = nil; return end
+    self.lastEstTime = now
+    if self.est and last and now > last then
+        local base, cast = self:GetMP5()
+        local mx = MaxMana()
+        if mx then
+            -- Zeitspanne am Ende der 5-Sek.-Regel teilen: davor Zauber-, danach normale Regeneration
+            local split = math.max(last, math.min(now, self.fsrEnd or 0))
+            local gain = (cast or 0) * (split - last) / 5 + (base or 0) * (now - split) / 5
+            if gain > 0 then self.est = math.min(mx, self.est + gain) end
+        end
+    end
     local quietSince = math.max(self.lastTick or 0, self.fsrEnd or 0, self.lastCast or 0, self.resetTime or 0)
     if now - quietSince > TICK_TIMEOUT then
         local mx = MaxMana()
@@ -210,6 +213,28 @@ function T:OnSpellCast(spellID)
             self.est = nil          -- Kosten unbekannt: Schätzung erst bei vollem Mana wieder
         end
     end
+end
+
+-- Manavorschau: Kosten des Zaubers, der gerade gewirkt wird ---------------------------
+function T:OnCastStart(spellID)
+    self.castSpell = ns.Readable(spellID) and spellID or nil
+end
+
+function T:OnCastEnd()
+    self.castSpell = nil
+end
+
+-- Manakosten des laufenden Zaubers (Zahl > 0) oder nil (kein Zauber, kostet kein Mana,
+-- Kosten nicht lesbar). Kanalisierte Zauber zahlen sofort und brauchen keine Vorschau.
+function T:CastPreview()
+    local spellID = self.castSpell
+    if not spellID and UnitCastingInfo then
+        local ok, _, _, _, _, _, _, _, _, id = pcall(UnitCastingInfo, "player")
+        if ok and ns.Readable(id) and type(id) == "number" then spellID = id end
+    end
+    if not spellID then return nil end
+    local cost = SpellManaCost(spellID)
+    if cost and cost > 0 then return cost end
 end
 
 -- Abfragen für die Anzeige ---------------------------------------------------

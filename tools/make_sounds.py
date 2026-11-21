@@ -89,13 +89,45 @@ def alarm():         # Alarm: zwei Töne im Wechsel
     return np.concatenate(parts)
 
 
+def vowel(f0, sec, formants, glide=0.0):
+    """stimmähnliche Silbe: Sägezahn-Stimme durch einfache Formant-Resonanzen"""
+    x = t(sec)
+    f = f0 * (1 + glide * x / sec)
+    phase = 2 * np.pi * np.cumsum(f) / RATE
+    out = np.zeros_like(x)
+    for k in range(1, 30):
+        fk = f0 * k
+        amp = sum(a / (1 + ((fk - fm) / bw) ** 2) for fm, bw, a in formants)
+        out += amp * np.sin(k * phase) / k
+    return out
+
+
+def icq_uhoh():      # ICQ-artiges "Uh-oh!": hohe Silbe, kurze Pause, tiefe Silbe (nachgebaut)
+    uh = env(vowel(330, 0.17, [(600, 90, 1.0), (1000, 120, 0.5)], -0.05), 0.01, 0.04)
+    oh = env(vowel(245, 0.30, [(450, 80, 1.0), (800, 110, 0.4)], -0.12), 0.015, 0.12)
+    return np.concatenate([uh, silence(0.07), oh])
+
+
+def icq_msg():       # ICQ-artiges Nachrichten-Blip: zwei schnelle helle Töne
+    def blip(f, sec):
+        x = t(sec)
+        tone = np.sin(2 * np.pi * f * x) + 0.3 * np.sin(2 * np.pi * f * 2 * x)
+        return env(tone * np.exp(-x * 9), 0.002, 0.02)
+    return np.concatenate([blip(1568, 0.09), silence(0.03), blip(2093, 0.22)])
+
+
 SOUNDS = {
+    "icquhoh": icq_uhoh, "icqmsg": icq_msg,
     "horn": horn, "airhorn": airhorn, "siren": siren, "buzzer": buzzer,
     "beeps": beeps, "chime": chime, "alarm2": alarm,
 }
 
 if __name__ == "__main__":
+    import sys
+    only = sys.argv[1:]          # optional: nur diese Töne erzeugen, z. B. icquhoh icqmsg
     for name, fn in SOUNDS.items():
+        if only and name not in only:
+            continue
         data = fn()
         data = 0.9 * data / np.max(np.abs(data))
         path = os.path.normpath(os.path.join(OUT, "snd_%s.ogg" % name))

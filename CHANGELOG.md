@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.7.0 – 2026-11-21
+
+- **Mana preview while casting:** while you cast a spell, ManaSigil shows how much mana you will have left afterwards, e.g. "After cast: 1700 (43%)" above the display. The part of the ring, pie or bar the spell will cost pulses gold. If you do not have enough mana, it says "Not enough mana!". With hidden mana values the number is estimated (marked with "~"). Can be switched off under Modules ("Mana preview while casting"); its color is "Mana preview" under Colors, and the text can be moved in the edit mode
+- **Fixed:** with hidden mana values the warning sound could keep playing although your mana was already above the threshold. The estimated mana now regenerates by the clock instead of only on detected mana ticks, so missed ticks no longer keep the estimate too low
+- **Two new warning sounds:** "ICQ uh-oh" and "ICQ message" (own recreations, not the original recordings)
+
 ## 1.6.0 – 2026-11-20
 
 - **Warning sound at your percentage, even with hidden mana values:** if the game hides your mana (and its percentage), ManaSigil now calculates your mana itself for the warning sound: full when no more mana ticks arrive, minus the cost of each spell, plus regeneration per tick. Potions or free casts can make the sound a little early or late; the calculation corrects itself at full mana. `/msig debug` shows the estimated mana in the "warnsound" line

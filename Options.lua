@@ -367,7 +367,7 @@ end
 local function Lookup(tbl) return function(v) return tbl[v] or v end end
 local function List(...) local t = { ... }; return function() return t end end
 
-local MODULE_ORDER = { "ring", "fsr", "ticks", "spark", "decor", "text", "background", "rim", "animations", "fallback" }
+local MODULE_ORDER = { "ring", "fsr", "ticks", "spark", "decor", "text", "background", "rim", "animations", "fallback", "castPreview" }
 
 local function Pct(v) return string.format("%d%%", math.floor(v * 100 + 0.5)) end
 local function Times(v) return string.format("%.2fx", v) end

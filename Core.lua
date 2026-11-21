@@ -35,6 +35,7 @@ ns.defaults = {
         rim        = true,  -- Rand um den Ring
         animations = true,  -- Rotation / Schweben / Pulsieren
         fallback   = true,  -- Ersatzbalken, falls das Spiel Manawerte verbirgt
+        castPreview = true, -- Manavorschau: so viel Mana bleibt nach dem laufenden Zauber
     },
     style = {
         outerStyle  = "symbols", -- symbols = einzelne Symbole, solid = durchgehender Kreis
@@ -168,7 +169,7 @@ ns.roundShapes = { dot = true, solid = true, circle = true }
 
 -- Einstellbare Farben (Reihenfolge = Optionsmenü)
 ns.colorKeys = {}
-for _, k in ipairs({ "ring", "empty", "fsr", "tick", "bg", "rim", "text", "spark", "decor", "high", "mid", "low" }) do
+for _, k in ipairs({ "ring", "empty", "fsr", "tick", "bg", "rim", "text", "spark", "decor", "high", "mid", "low", "cast" }) do
     ns.colorKeys[#ns.colorKeys + 1] = { k, L.COLORS[k] }
 end
 
@@ -237,12 +238,14 @@ ns.gradients = {
 }
 
 -- Warntöne: Schlüssel -> Sound-ID (SOUNDKIT des Spiels) oder eigene Datei (Media/snd_*.ogg)
-ns.warnSoundOrder = { "horn", "airhorn", "siren", "alarm2", "buzzer", "beeps", "chime",
+ns.warnSoundOrder = { "icquhoh", "icqmsg", "horn", "airhorn", "siren", "alarm2", "buzzer", "beeps", "chime",
                       "raid", "ready", "alarm", "bell", "whisper", "invite", "questfail", "ping" }
 local function Kit(name, fallback) return (SOUNDKIT and SOUNDKIT[name]) or fallback end
 local MEDIA = "Interface\\AddOns\\" .. addonName .. "\\Media\\"
 ns.warnSounds = {
     -- eigene Töne (tools/make_sounds.py)
+    icquhoh = MEDIA .. "snd_icquhoh.ogg",
+    icqmsg  = MEDIA .. "snd_icqmsg.ogg",
     horn    = MEDIA .. "snd_horn.ogg",
     airhorn = MEDIA .. "snd_airhorn.ogg",
     siren   = MEDIA .. "snd_siren.ogg",
@@ -320,6 +323,8 @@ function ns.GetColor(name)
     elseif name == "spark" then
         local r, g, b = ns.GetColor("ring")
         return math.min(1, r + 0.35), math.min(1, g + 0.35), math.min(1, b + 0.35)
+    elseif name == "cast" then
+        return 1.0, 0.82, 0.25           -- Manavorschau: goldener Teil = Kosten des Zaubers
     end
     t = ns.themes.classic.colors[name] or { 1, 1, 1 }
     return t[1], t[2], t[3]
@@ -393,6 +398,10 @@ function handlers.PLAYER_LOGIN()
     events:RegisterUnitEvent("UNIT_POWER_UPDATE", "player")
     events:RegisterUnitEvent("UNIT_POWER_FREQUENT", "player")
     events:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player")
+    events:RegisterUnitEvent("UNIT_SPELLCAST_START", "player")
+    events:RegisterUnitEvent("UNIT_SPELLCAST_STOP", "player")
+    events:RegisterUnitEvent("UNIT_SPELLCAST_FAILED", "player")
+    events:RegisterUnitEvent("UNIT_SPELLCAST_INTERRUPTED", "player")
     Safe("Sound", ns.RestoreSoundCVars)     -- falls ein Warnton beim letzten Mal unterbrochen wurde
     Safe("Tracker", ns.Tracker.Init, ns.Tracker)
     Safe("Display", ns.Display.Build, ns.Display)
@@ -443,8 +452,17 @@ function handlers.UNIT_DISPLAYPOWER()
 end
 
 function handlers.UNIT_SPELLCAST_SUCCEEDED(unit, castGUID, spellID)
+    ns.Tracker:OnCastEnd()
     ns.Tracker:OnSpellCast(spellID)
 end
+
+-- Laufender Zauber (für die Manavorschau)
+function handlers.UNIT_SPELLCAST_START(unit, castGUID, spellID)
+    ns.Tracker:OnCastStart(spellID)
+end
+function handlers.UNIT_SPELLCAST_STOP() ns.Tracker:OnCastEnd() end
+function handlers.UNIT_SPELLCAST_FAILED() ns.Tracker:OnCastEnd() end
+function handlers.UNIT_SPELLCAST_INTERRUPTED() ns.Tracker:OnCastEnd() end
 
 events:RegisterEvent("ADDON_LOADED")
 events:RegisterEvent("PLAYER_LOGIN")

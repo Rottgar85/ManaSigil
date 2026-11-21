@@ -108,6 +108,10 @@ SB.parts = {
     TextPart("valText", "valText", nil, 3.5),
     TextPart("infoText", "infoText", nil, 2.5),
     TextPart("mp5Text", "mp5Text", function() return ns.GetStyle("mp5Mode") ~= "off" end, 6.5),
+    { key = "castText", text = true, widthFactor = 9,
+      regions = function() return { D().castText } end,
+      shown = function() return Mods().castPreview and D().castText:IsShown() end,
+      rect = TextRect },
     { key = "timer",
       regions = function()
           if ns.db.mode == "bar" then return { D().bar2 } end
